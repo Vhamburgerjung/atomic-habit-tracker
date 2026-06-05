@@ -8,12 +8,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   Switch,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { ChevronLeft, ChevronRight, Check, X } from "lucide-react-native";
-import { useHabitStore, Habit } from "../../src/store/useHabitStore";
-import { scheduleHabitReminder } from "../../src/utils/notifications";
+import { useDispatch } from "../../src/data";
+import type { Habit } from "../../src/store/useHabitStore";
 import { COLORS, FONTS } from "../../src/theme";
 
 // Only imported on native — web falls back to TextInput
@@ -127,7 +128,7 @@ export default function NewHabitScreen() {
   const [form, setForm] = useState<FormData>(INITIAL_FORM);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [reminderDate, setReminderDate] = useState(new Date());
-  const { addHabit, updateHabit } = useHabitStore();
+  const { mutate: send, isPending } = useDispatch();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -140,35 +141,31 @@ export default function NewHabitScreen() {
   const update = (key: keyof FormData, value: string | boolean) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
-  const handleCreate = async () => {
-    const habitData: Omit<Habit, "id" | "createdAt"> = {
-      name: form.name || form.response || "New Habit",
-      emoji: form.emoji,
-      category: form.category,
-      cue: form.cue,
-      craving: form.craving,
-      response: form.response,
-      reward: form.reward,
-      identityStatement: form.identityStatement || undefined,
-      twoMinuteVersion: form.twoMinuteEnabled ? form.twoMinuteVersion : undefined,
-      frequency: "daily",
-      reminderTime: form.reminderTime || undefined,
-      isActive: true,
-    };
-
-    const newId = addHabit(habitData);
-
-    if (form.reminderTime) {
-      const fullHabit: Habit = {
-        ...habitData,
-        id: newId,
-        createdAt: new Date().toISOString(),
-      };
-      const notificationId = await scheduleHabitReminder(fullHabit);
-      if (notificationId) updateHabit(newId, { notificationId });
-    }
-
-    router.back();
+  const handleCreate = () => {
+    send(
+      {
+        type: "CREATE_HABIT",
+        payload: {
+          name: form.name || form.response || "New Habit",
+          emoji: form.emoji,
+          category: form.category,
+          cue: form.cue,
+          craving: form.craving,
+          response: form.response,
+          reward: form.reward,
+          identityStatement: form.identityStatement || undefined,
+          twoMinuteVersion: form.twoMinuteEnabled ? form.twoMinuteVersion : undefined,
+          frequency: "daily",
+          reminderTime: form.reminderTime || undefined,
+          isActive: true,
+        },
+      },
+      {
+        onSuccess: (result) => {
+          if (result.ok) router.back();
+        },
+      }
+    );
   };
 
   return (
@@ -503,7 +500,7 @@ export default function NewHabitScreen() {
           )}
           <Pressable
             onPress={() => {
-              if (!canProceed) return;
+              if (!canProceed || isPending) return;
               if (currentStep < STEPS.length) {
                 setCurrentStep((s) => s + 1);
               } else {
@@ -519,7 +516,7 @@ export default function NewHabitScreen() {
               alignItems: "center",
               justifyContent: "center",
               gap: 6,
-              opacity: canProceed ? 1 : 0.4,
+              opacity: canProceed && !isPending ? 1 : 0.4,
               shadowColor: COLORS.accent,
               shadowOffset: { width: 0, height: 4 },
               shadowOpacity: canProceed ? 0.4 : 0,
@@ -527,13 +524,19 @@ export default function NewHabitScreen() {
               elevation: canProceed ? 6 : 0,
             }}
           >
-            <Text style={{ color: "white", fontFamily: FONTS.medium }}>
-              {currentStep === STEPS.length ? "Create Habit" : "Next"}
-            </Text>
-            {currentStep < STEPS.length ? (
-              <ChevronRight color="white" size={18} />
+            {isPending ? (
+              <ActivityIndicator color="white" size="small" />
             ) : (
-              <Check color="white" size={18} />
+              <>
+                <Text style={{ color: "white", fontFamily: FONTS.medium }}>
+                  {currentStep === STEPS.length ? "Create Habit" : "Next"}
+                </Text>
+                {currentStep < STEPS.length ? (
+                  <ChevronRight color="white" size={18} />
+                ) : (
+                  <Check color="white" size={18} />
+                )}
+              </>
             )}
           </Pressable>
         </View>

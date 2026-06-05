@@ -6,6 +6,7 @@ interface RewardModalProps {
   habitName: string;
   habitEmoji: string;
   reward: string;
+  xp?: number | null;
   onClose: () => void;
 }
 
@@ -14,6 +15,7 @@ export function RewardModal({
   habitName,
   habitEmoji,
   reward,
+  xp,
   onClose,
 }: RewardModalProps) {
   return (
@@ -71,6 +73,33 @@ export function RewardModal({
               {reward}
             </Text>
           </View>
+          {xp != null && (
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: `${COLORS.accent}22`,
+                borderRadius: 20,
+                paddingHorizontal: 16,
+                paddingVertical: 8,
+                gap: 6,
+              }}
+            >
+              <Text style={{ fontSize: 16 }}>⚡</Text>
+              <Text
+                style={{
+                  fontFamily: FONTS.mono,
+                  fontSize: 18,
+                  color: COLORS.accent,
+                  letterSpacing: 0.5,
+                }}
+              >
+                +{xp} XP
+              </Text>
+            </View>
+          )}
+
           <Pressable
             onPress={onClose}
             style={{

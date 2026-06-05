@@ -1,4 +1,4 @@
-import { CheckOff } from "../store/useHabitStore";
+import type { CheckOff } from "../store/useHabitStore";
 
 export function isCompletedToday(habitId: string, checkoffs: CheckOff[]): boolean {
   const today = new Date().toDateString();
@@ -77,6 +77,30 @@ export function getRecentCheckoffs(
         new Date(c.completedAt).toDateString() === date.toDateString()
     );
   });
+}
+
+export function isStreakFrozen(habitId: string, checkoffs: CheckOff[]): boolean {
+  const habit = checkoffs.filter((c) => c.habitId === habitId);
+  const toDay = (offset: number) =>
+    new Date(Date.now() - offset * 86_400_000).toDateString();
+
+  const doneToday = habit.some((c) => new Date(c.completedAt).toDateString() === toDay(0));
+  const doneYesterday = habit.some((c) => new Date(c.completedAt).toDateString() === toDay(1));
+  const doneDayBefore = habit.some((c) => new Date(c.completedAt).toDateString() === toDay(2));
+
+  // Freeze active: missed yesterday but completed day before, not yet done today
+  return !doneToday && !doneYesterday && doneDayBefore;
+}
+
+export function getEffectiveStreak(habitId: string, checkoffs: CheckOff[]): number {
+  if (!isStreakFrozen(habitId, checkoffs)) return getStreak(habitId, checkoffs);
+  // Compute streak as of the last completed day (day before yesterday)
+  const cutoff = new Date(Date.now() - 2 * 86_400_000);
+  cutoff.setHours(23, 59, 59, 999);
+  const historical = checkoffs.filter(
+    (c) => c.habitId === habitId && new Date(c.completedAt) <= cutoff
+  );
+  return getStreak(habitId, historical);
 }
 
 export function getYearData(

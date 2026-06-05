@@ -6,17 +6,13 @@ import {
   Pressable,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ChevronLeft, Flame, Trophy, CheckCircle2, Target, Edit2, Check } from "lucide-react-native";
-import { useHabitStore } from "../../src/store/useHabitStore";
-import {
-  getStreak,
-  getBestStreak,
-  getWeeklyCompletions,
-  getYearData,
-} from "../../src/utils/streaks";
+import { useHabits, useHabitStats, useDispatch } from "../../src/data";
+import { getWeeklyCompletions } from "../../src/utils/streaks";
 import { COLORS, FONTS } from "../../src/theme";
 
 function StatCard({
@@ -57,14 +53,30 @@ function StatCard({
 
 export default function HabitDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { habits, checkoffs, updateHabit } = useHabitStore();
+  const { data: habits, isLoading: habitsLoading } = useHabits();
+  const { mutate: send } = useDispatch();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const habit = habits.find((h) => h.id === id);
+  const yearStart = `${new Date().getFullYear()}-01-01`;
+  const today = new Date().toISOString().split("T")[0];
+  const { data: stats, isLoading: statsLoading } = useHabitStats(id ?? "", {
+    from: yearStart,
+    to: today,
+  });
+
+  const habit = habits?.find((h) => h.id === id);
   const [editMode, setEditMode] = useState(false);
   const [editName, setEditName] = useState(habit?.name ?? "");
   const [editEmoji, setEditEmoji] = useState(habit?.emoji ?? "");
+
+  if (habitsLoading || statsLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: COLORS.background, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator color={COLORS.accent} />
+      </View>
+    );
+  }
 
   if (!habit) {
     return (
@@ -77,11 +89,17 @@ export default function HabitDetailScreen() {
     );
   }
 
-  const streak = getStreak(habit.id, checkoffs);
-  const bestStreak = getBestStreak(habit.id, checkoffs);
-  const totalCompletions = checkoffs.filter((c) => c.habitId === habit.id).length;
-  const weeklyCompletions = getWeeklyCompletions(habit.id, checkoffs);
-  const yearData = getYearData(habit.id, checkoffs);
+  const streak = stats?.streak.current ?? 0;
+  const bestStreak = stats?.streak.record ?? 0;
+  const totalCompletions = stats?.totalCheckOffs ?? 0;
+  const weeklyCompletions = getWeeklyCompletions(habit.id, stats?.checkoffs ?? []);
+
+  const yearData = Array.from({ length: 365 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (364 - i));
+    const dateStr = d.toISOString().split("T")[0];
+    return { date: dateStr, completed: !!(stats?.completionByDay[dateStr]) };
+  });
 
   const weeks: { date: string; completed: boolean }[][] = [];
   for (let i = 0; i < yearData.length; i += 7) {
@@ -89,7 +107,7 @@ export default function HabitDetailScreen() {
   }
 
   const handleSave = () => {
-    updateHabit(habit.id, { name: editName, emoji: editEmoji });
+    send({ type: "UPDATE_HABIT", payload: { id: habit.id, name: editName, emoji: editEmoji } });
     setEditMode(false);
   };
 

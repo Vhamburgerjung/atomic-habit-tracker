@@ -8,8 +8,6 @@ import * as Haptics from "expo-haptics";
 import { Check } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { COLORS, FONTS } from "../theme";
-import { CheckOff } from "../store/useHabitStore";
-import { isCompletedToday, getStreak, getRecentCheckoffs } from "../utils/streaks";
 
 interface HabitCardProps {
   id: string;
@@ -20,7 +18,10 @@ interface HabitCardProps {
   craving: string;
   response: string;
   reward: string;
-  checkoffs: CheckOff[];
+  isCompletedToday: boolean;
+  streak: number;
+  isStreakFrozen: boolean;
+  recentDays: boolean[];
   onToggle: (id: string) => void;
   onChecked: (id: string) => void;
 }
@@ -34,15 +35,14 @@ export function HabitCard({
   craving,
   response,
   reward,
-  checkoffs,
+  isCompletedToday,
+  streak,
+  isStreakFrozen,
+  recentDays,
   onToggle,
   onChecked,
 }: HabitCardProps) {
-  const completed = isCompletedToday(id, checkoffs);
-  const streak = getStreak(id, checkoffs);
-  const recentDays = getRecentCheckoffs(id, checkoffs, 30);
   const router = useRouter();
-
   const scale = useSharedValue(1);
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -53,11 +53,14 @@ export function HabitCard({
       scale.value = withSpring(1);
     });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (!completed) {
+    if (!isCompletedToday) {
       onChecked(id);
     }
     onToggle(id);
   };
+
+  const streakColor = isStreakFrozen ? "#60A5FA" : COLORS.warning;
+  const streakEmoji = isStreakFrozen ? "🧊" : "🔥";
 
   return (
     <Animated.View style={[{ marginBottom: 12 }, animatedStyle]}>
@@ -65,7 +68,11 @@ export function HabitCard({
         onPress={() => router.push(`/habit/${id}`)}
         style={{
           backgroundColor: COLORS.card,
-          borderColor: completed ? `${COLORS.success}40` : COLORS.border,
+          borderColor: isCompletedToday
+            ? `${COLORS.success}40`
+            : isStreakFrozen
+            ? "#60A5FA30"
+            : COLORS.border,
           borderWidth: 1,
           borderRadius: 12,
           padding: 16,
@@ -89,8 +96,8 @@ export function HabitCard({
             <Text
               style={{
                 fontFamily: FONTS.medium,
-                color: completed ? COLORS.muted : COLORS.text,
-                textDecorationLine: completed ? "line-through" : "none",
+                color: isCompletedToday ? COLORS.muted : COLORS.text,
+                textDecorationLine: isCompletedToday ? "line-through" : "none",
                 fontSize: 15,
                 flex: 1,
               }}
@@ -98,12 +105,31 @@ export function HabitCard({
               {name}
             </Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-              <Text style={{ fontSize: 11 }}>🔥</Text>
-              <Text style={{ fontSize: 12, color: COLORS.warning, fontFamily: FONTS.mono }}>
+              <Text style={{ fontSize: 11 }}>{streakEmoji}</Text>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: streakColor,
+                  fontFamily: FONTS.mono,
+                }}
+              >
                 {streak}d
               </Text>
             </View>
           </View>
+
+          {/* Freeze indicator */}
+          {isStreakFrozen && !isCompletedToday && (
+            <Text
+              style={{
+                color: "#60A5FA",
+                fontSize: 11,
+                marginBottom: 6,
+              }}
+            >
+              🧊 Streak protected — don't miss twice
+            </Text>
+          )}
 
           {/* Identity statement */}
           {identityStatement ? (
@@ -142,7 +168,9 @@ export function HabitCard({
                   >
                     {item.label}
                   </Text>
-                  <Text style={{ color: COLORS.text, fontSize: 12, flex: 1, lineHeight: 17 }}>
+                  <Text
+                    style={{ color: COLORS.text, fontSize: 12, flex: 1, lineHeight: 17 }}
+                  >
                     {item.value}
                   </Text>
                 </View>
@@ -165,30 +193,28 @@ export function HabitCard({
           </View>
         </View>
 
-        {/* Check button — separate pressable, does NOT navigate */}
+        {/* Check button */}
         <Pressable
-          onPress={(e) => {
-            handleToggle();
-          }}
+          onPress={() => handleToggle()}
           hitSlop={8}
           style={{
             width: 44,
             height: 44,
             borderRadius: 22,
             borderWidth: 2,
-            borderColor: completed ? COLORS.success : COLORS.accent,
-            backgroundColor: completed ? COLORS.success : "transparent",
+            borderColor: isCompletedToday ? COLORS.success : COLORS.accent,
+            backgroundColor: isCompletedToday ? COLORS.success : "transparent",
             alignItems: "center",
             justifyContent: "center",
-            shadowColor: completed ? COLORS.success : COLORS.accent,
+            shadowColor: isCompletedToday ? COLORS.success : COLORS.accent,
             shadowOffset: { width: 0, height: 0 },
-            shadowOpacity: completed ? 0.4 : 0,
+            shadowOpacity: isCompletedToday ? 0.4 : 0,
             shadowRadius: 8,
-            elevation: completed ? 4 : 0,
+            elevation: isCompletedToday ? 4 : 0,
             marginTop: 2,
           }}
         >
-          {completed && <Check color="white" size={22} />}
+          {isCompletedToday && <Check color="white" size={22} />}
         </Pressable>
       </Pressable>
     </Animated.View>

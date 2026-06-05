@@ -1,30 +1,28 @@
-import { View, Text, ScrollView, Pressable, Alert } from "react-native";
+import { View, Text, ScrollView, Pressable, Alert, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Swipeable } from "react-native-gesture-handler";
 import { Trash2, ChevronRight, Plus } from "lucide-react-native";
-import { useHabitStore } from "../../src/store/useHabitStore";
+import { useHabitList, useDispatch } from "../../src/data";
 import { EmptyState } from "../../src/components/EmptyState";
-import { getStreak } from "../../src/utils/streaks";
 import { COLORS, FONTS } from "../../src/theme";
 
 export default function HabitsScreen() {
-  const { habits, checkoffs, deleteHabit } = useHabitStore();
+  const { active: activeHabits, isLoading } = useHabitList();
+  const { mutate: send } = useDispatch();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const activeHabits = habits.filter((h) => h.isActive);
-
-  const handleDelete = (id: string, name: string) => {
+  const handleArchive = (id: string, name: string) => {
     Alert.alert(
-      "Delete Habit",
-      `Delete "${name}" and all its history?`,
+      "Gewohnheit archivieren",
+      `"${name}" archivieren?`,
       [
-        { text: "Cancel", style: "cancel" },
+        { text: "Abbrechen", style: "cancel" },
         {
-          text: "Delete",
+          text: "Archivieren",
           style: "destructive",
-          onPress: () => deleteHabit(id),
+          onPress: () => send({ type: "ARCHIVE_HABIT", payload: { id } }),
         },
       ]
     );
@@ -32,7 +30,7 @@ export default function HabitsScreen() {
 
   const renderRightActions = (id: string, name: string) => (
     <Pressable
-      onPress={() => handleDelete(id, name)}
+      onPress={() => handleArchive(id, name)}
       style={{
         backgroundColor: "#EF4444",
         justifyContent: "center",
@@ -45,6 +43,10 @@ export default function HabitsScreen() {
       <Trash2 color="white" size={20} />
     </Pressable>
   );
+
+  if (isLoading) {
+    return <ActivityIndicator color={COLORS.accent} style={{ flex: 1, marginTop: 100 }} />;
+  }
 
   return (
     <View
@@ -77,42 +79,39 @@ export default function HabitsScreen() {
           contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 100, paddingTop: 8 }}
           showsVerticalScrollIndicator={false}
         >
-          {activeHabits.map((habit) => {
-            const streak = getStreak(habit.id, checkoffs);
-            return (
-              <Swipeable
-                key={habit.id}
-                renderRightActions={() => renderRightActions(habit.id, habit.name)}
-                overshootRight={false}
+          {activeHabits.map((habit) => (
+            <Swipeable
+              key={habit.id}
+              renderRightActions={() => renderRightActions(habit.id, habit.name)}
+              overshootRight={false}
+            >
+              <Pressable
+                onPress={() => router.push(`/habit/${habit.id}`)}
+                style={{
+                  backgroundColor: COLORS.card,
+                  borderColor: COLORS.border,
+                  borderWidth: 1,
+                  borderRadius: 12,
+                  padding: 16,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 12,
+                  marginBottom: 12,
+                }}
               >
-                <Pressable
-                  onPress={() => router.push(`/habit/${habit.id}`)}
-                  style={{
-                    backgroundColor: COLORS.card,
-                    borderColor: COLORS.border,
-                    borderWidth: 1,
-                    borderRadius: 12,
-                    padding: 16,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 12,
-                    marginBottom: 12,
-                  }}
-                >
-                  <Text style={{ fontSize: 28 }}>{habit.emoji}</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontFamily: FONTS.medium, color: COLORS.text, fontSize: 15 }}>
-                      {habit.name}
-                    </Text>
-                    <Text style={{ color: COLORS.muted, fontSize: 12, marginTop: 2 }}>
-                      🔥 {streak} day streak
-                    </Text>
-                  </View>
-                  <ChevronRight color={COLORS.muted} size={18} />
-                </Pressable>
-              </Swipeable>
-            );
-          })}
+                <Text style={{ fontSize: 28 }}>{habit.emoji}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: FONTS.medium, color: COLORS.text, fontSize: 15 }}>
+                    {habit.name}
+                  </Text>
+                  <Text style={{ color: COLORS.muted, fontSize: 12, marginTop: 2 }}>
+                    {habit.category}
+                  </Text>
+                </View>
+                <ChevronRight color={COLORS.muted} size={18} />
+              </Pressable>
+            </Swipeable>
+          ))}
         </ScrollView>
       )}
     </View>

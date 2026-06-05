@@ -1,31 +1,49 @@
-import { useState } from "react";
-import { View, Text, ScrollView, Pressable } from "react-native";
+import { useState, useEffect, useRef } from "react";
+import { View, Text, ScrollView, Pressable, ActivityIndicator, Animated } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Plus } from "lucide-react-native";
-import { useHabitStore } from "../../src/store/useHabitStore";
+import { useTodayDashboard, useDispatch, useHabitRealtime } from "../../src/data";
 import { ProgressRing } from "../../src/components/ProgressRing";
 import { HabitCard } from "../../src/components/HabitCard";
 import { EmptyState } from "../../src/components/EmptyState";
-import { RewardModal } from "../../src/components/RewardModal";
-import { isCompletedToday } from "../../src/utils/streaks";
+import { XPToast } from "../../src/components/XPToast";
+import { xpForCheckOff } from "../../src/utils/xp";
 import { COLORS, FONTS } from "../../src/theme";
 
 export default function TodayScreen() {
-  const { habits, checkoffs, toggleCheckOff } = useHabitStore();
+  useHabitRealtime();
+  const { items: activeHabits, isLoading } = useTodayDashboard();
+  const { mutate: send } = useDispatch();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const [rewardHabit, setRewardHabit] = useState<{
-    name: string;
-    emoji: string;
-    reward: string;
-  } | null>(null);
+  const [checkOffToast, setCheckOffToast] = useState<{ xp: number; reward: string } | null>(null);
 
-  const activeHabits = habits.filter((h) => h.isActive);
-  const completedCount = activeHabits.filter((h) =>
-    isCompletedToday(h.id, checkoffs)
-  ).length;
+  const completedCount = activeHabits.filter((h) => h.isCompletedToday).length;
+  const isAllDone = activeHabits.length > 0 && completedCount === activeHabits.length;
+
+  const [showDoneBanner, setShowDoneBanner] = useState(false);
+  const bannerOpacity    = useRef(new Animated.Value(0)).current;
+  const bannerTranslateY = useRef(new Animated.Value(16)).current;
+  const isAllDoneRef     = useRef(isAllDone);
+
+  useEffect(() => {
+    isAllDoneRef.current = isAllDone;
+    // Hide banner if a habit gets unchecked
+    if (!isAllDone) setShowDoneBanner(false);
+  }, [isAllDone]);
+
+  const triggerDoneBanner = () => {
+    setShowDoneBanner(true);
+    bannerOpacity.setValue(0);
+    bannerTranslateY.setValue(16);
+    Animated.parallel([
+      Animated.timing(bannerOpacity,    { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.spring(bannerTranslateY, { toValue: 0, friction: 7,   useNativeDriver: true }),
+    ]).start();
+  };
+
 
   const currentHour = new Date().getHours();
   const greeting =
@@ -40,12 +58,21 @@ export default function TodayScreen() {
     day: "numeric",
   });
 
-  const handleChecked = (id: string) => {
-    const habit = habits.find((h) => h.id === id);
-    if (habit) {
-      setRewardHabit({ name: habit.name, emoji: habit.emoji, reward: habit.reward });
-    }
+  const handleToggle = (habitId: string) => {
+    const dateStr = new Date().toISOString().split("T")[0];
+    send({ type: "TOGGLE_CHECKOFF", payload: { habitId, date: dateStr } });
   };
+
+  const handleChecked = (id: string) => {
+    const habit = activeHabits.find((h) => h.id === id);
+    if (!habit) return;
+    const newStreak = habit.currentStreak + 1;
+    setCheckOffToast({ xp: xpForCheckOff(newStreak), reward: habit.reward });
+  };
+
+  if (isLoading) {
+    return <ActivityIndicator color={COLORS.accent} style={{ flex: 1, marginTop: 100 }} />;
+  }
 
   return (
     <View
@@ -68,10 +95,58 @@ export default function TodayScreen() {
           </Text>
         </View>
 
-        {/* Progress Ring */}
+        {/* Progress Ring + All-Done Banner */}
         {activeHabits.length > 0 && (
-          <View style={{ alignItems: "center", paddingVertical: 32 }}>
-            <ProgressRing completed={completedCount} total={activeHabits.length} />
+          <View style={{ alignItems: "center", paddingTop: 32, paddingBottom: 8 }}>
+            <ProgressRing
+              completed={completedCount}
+              total={activeHabits.length}
+              isComplete={isAllDone}
+            />
+
+            {showDoneBanner && (
+              <Animated.View
+                style={{
+                  opacity: bannerOpacity,
+                  transform: [{ translateY: bannerTranslateY }],
+                  marginTop: 20,
+                  width: "100%",
+                  backgroundColor: "#1A1A2E",
+                  borderColor: "#FFD70040",
+                  borderWidth: 1,
+                  borderRadius: 16,
+                  paddingVertical: 16,
+                  paddingHorizontal: 20,
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                <Text style={{ fontSize: 28, marginBottom: 4 }}>🏆</Text>
+                <Text
+                  style={{
+                    fontFamily: FONTS.display,
+                    fontSize: 17,
+                    color: "#FFD700",
+                    textAlign: "center",
+                  }}
+                >
+                  All done for today.
+                </Text>
+                <Text
+                  style={{
+                    fontFamily: FONTS.body,
+                    fontSize: 13,
+                    color: COLORS.muted,
+                    textAlign: "center",
+                    marginTop: 2,
+                  }}
+                >
+                  You're becoming someone who follows through.
+                </Text>
+              </Animated.View>
+            )}
+
+            <View style={{ height: 24 }} />
           </View>
         )}
 
@@ -95,14 +170,17 @@ export default function TodayScreen() {
                 key={habit.id}
                 id={habit.id}
                 name={habit.name}
-                emoji={habit.emoji}
+                emoji={habit.emoji ?? ""}
                 identityStatement={habit.identityStatement}
                 cue={habit.cue}
                 craving={habit.craving}
                 response={habit.response}
                 reward={habit.reward}
-                checkoffs={checkoffs}
-                onToggle={toggleCheckOff}
+                isCompletedToday={habit.isCompletedToday}
+                streak={habit.currentStreak}
+                isStreakFrozen={habit.isStreakFrozen}
+                recentDays={habit.recentDays}
+                onToggle={handleToggle}
                 onChecked={handleChecked}
               />
             ))}
@@ -135,14 +213,16 @@ export default function TodayScreen() {
         </Pressable>
       )}
 
-      {/* Reward Modal */}
-      <RewardModal
-        visible={rewardHabit !== null}
-        habitName={rewardHabit?.name ?? ""}
-        habitEmoji={rewardHabit?.emoji ?? ""}
-        reward={rewardHabit?.reward ?? ""}
-        onClose={() => setRewardHabit(null)}
+      {/* Check-off Toast — tap to dismiss; triggers All-Done banner if all habits done */}
+      <XPToast
+        xp={checkOffToast?.xp ?? null}
+        reward={checkOffToast?.reward}
+        onDone={() => {
+          setCheckOffToast(null);
+          if (isAllDoneRef.current) triggerDoneBanner();
+        }}
       />
+
     </View>
   );
 }
