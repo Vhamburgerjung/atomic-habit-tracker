@@ -105,7 +105,7 @@ export function HabitWeekRow({
         {Array.from({ length: 7 }, (_, col) => {
           const dateStr = cellDates[col];
           const daysAgo = 6 - col;
-          const idx = 111 - daysAgo;
+          const idx = recentDays.length - 1 - daysAgo;
           const isBeforeCreation = dateStr < createdDateStr;
           const isDone = idx >= 0 && idx < recentDays.length && recentDays[idx] === true;
           const isToday = col === 6;

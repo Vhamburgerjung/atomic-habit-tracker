@@ -34,6 +34,9 @@ Vertical-slice tickets for the dashboard + HabitCard redesign. Generated from th
 | 012 | `useHabitToggle` hook (shared) | AFK | — |
 | 013 | `HabitCardCompact` + grid mode | AFK | 011, 012 |
 | 014 | `WeekdayHeader` + `HabitWeekRow` + week mode | AFK | 011, 012 |
+| 015 | `recentDays` extended to 365 days | AFK | — |
+| 016 | Full-view 7×52 horizontal-scrollable year heatmap | AFK | 015 |
+| 017 | Compact-view monthly calendar + 3-col grid | AFK | 015, 016 |
 
 ## Parallelizable starting points
 

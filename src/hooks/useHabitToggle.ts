@@ -46,14 +46,13 @@ export function useHabitToggle(opts: UseHabitToggleOptions = {}): UseHabitToggle
     if (date === todayStr) {
       wasCompleted = habit.isCompletedToday;
     } else {
-      // recentDays has length 112, last entry = today.
-      // cell i ↔ today minus (111 - i) days, so for `date`:
+      // recentDays last entry = today; offset back from there.
       const today = new Date(todayStr + "T00:00:00Z");
       const target = new Date(date + "T00:00:00Z");
       const offsetDays = Math.round(
         (today.getTime() - target.getTime()) / 86_400_000
       );
-      const idx = 111 - offsetDays;
+      const idx = habit.recentDays.length - 1 - offsetDays;
       wasCompleted = idx >= 0 && idx < habit.recentDays.length
         ? habit.recentDays[idx] === true
         : false;

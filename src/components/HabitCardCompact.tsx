@@ -173,7 +173,7 @@ export function HabitCardCompact({
                 const offsetDays = Math.round(
                   (today.getTime() - cellDate.getTime()) / 86_400_000
                 );
-                const idx = 111 - offsetDays;
+                const idx = recentDays.length - 1 - offsetDays;
                 const isDone =
                   idx >= 0 && idx < recentDays.length
                     ? recentDays[idx] === true

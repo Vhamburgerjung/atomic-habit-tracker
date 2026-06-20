@@ -136,7 +136,7 @@ export function HabitCard({
           />
         </View>
 
-        {/* Heatmap: 4 rows × 28 columns = 112 cells */}
+        {/* Heatmap: 4 rows × 28 columns = 112 cells (last 112 days of recentDays) */}
         <View style={{ gap: 3 }}>
           {Array.from({ length: 4 }, (_, row) => (
             <View key={row} style={{ flexDirection: "row", gap: 3 }}>
@@ -144,7 +144,7 @@ export function HabitCard({
                 const idx = row * 28 + col;
                 const cellDate = cellDates[idx];
                 const isBeforeCreation = cellDate < createdDateStr;
-                const isDone = recentDays[idx] === true;
+                const isDone = recentDays[recentDays.length - 112 + idx] === true;
 
                 let bg: string;
                 let opacity: number;
