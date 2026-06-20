@@ -7,10 +7,10 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import { COLORS, FONTS } from "../theme";
-import { CheckButton } from "./CheckButton";
 import { useHabitToggle, type CheckedToastInfo } from "../hooks/useHabitToggle";
+import { COLORS, FONTS } from "../theme";
 import { computeActiveWeekSet, heatmapCellOpacity } from "../utils/heatmap";
+import { CheckButton } from "./CheckButton";
 
 interface HabitCardProps {
   id: string;
@@ -145,8 +145,8 @@ export function HabitCard({
           style={{
             flexDirection: "row",
             alignItems: "center",
-            gap: 12,
-            marginBottom: 8,
+            gap: 10,
+            marginBottom: 0,
             paddingHorizontal: 12,
           }}
         >
@@ -237,13 +237,13 @@ export function HabitCard({
                             opacity,
                           }}
                         />
-                        {isToday && (
+                        {isToday && !isDone && (
                           <View
                             style={{
                               width: 4,
                               height: 4,
                               borderRadius: 2,
-                              backgroundColor: COLORS.accent,
+                              backgroundColor: renderColor,
                             }}
                           />
                         )}

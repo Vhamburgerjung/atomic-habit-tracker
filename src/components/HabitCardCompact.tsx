@@ -84,9 +84,8 @@ export function HabitCardCompact({
 
   // Build the calendar grid for the current month.
   // Rows are weeks (5 or 6), columns are Mon..Sun.
-  const { weeks, todayYmd, monthLabel } = useMemo(() => {
+  const { weeks, monthLabel } = useMemo(() => {
     const today = new Date();
-    const todayYmdStr = toYmd(today);
 
     const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     const lastOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
@@ -127,7 +126,7 @@ export function HabitCardCompact({
       year: "numeric",
     });
 
-    return { weeks: rows, todayYmd: todayYmdStr, monthLabel: monthStr };
+    return { weeks: rows, monthLabel: monthStr };
   }, [recentDays]);
 
   const activeWeeks = useMemo(
@@ -211,7 +210,6 @@ export function HabitCardCompact({
                 {week.dones.map((isDone, col) => {
                   const cellYmd = week.ymds[col];
                   const isBeforeCreation = cellYmd < createdDateStr;
-                  const isToday = cellYmd === todayYmd;
                   const opacity = heatmapCellOpacity({
                     isDone,
                     isInActiveWeek: isActiveWeek && !isBeforeCreation,
@@ -222,33 +220,11 @@ export function HabitCardCompact({
                       style={{
                         flex: 1,
                         aspectRatio: 1,
-                        alignItems: "center",
-                        justifyContent: "center",
+                        borderRadius: 2,
+                        backgroundColor: renderColor,
+                        opacity,
                       }}
-                    >
-                      <View
-                        style={{
-                          position: "absolute",
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          borderRadius: 2,
-                          backgroundColor: renderColor,
-                          opacity,
-                        }}
-                      />
-                      {isToday && (
-                        <View
-                          style={{
-                            width: 3,
-                            height: 3,
-                            borderRadius: 1.5,
-                            backgroundColor: COLORS.accent,
-                          }}
-                        />
-                      )}
-                    </View>
+                    />
                   );
                 })}
               </View>
