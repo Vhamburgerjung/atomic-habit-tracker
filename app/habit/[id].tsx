@@ -14,6 +14,7 @@ import { ChevronLeft, Flame, Trophy, CheckCircle2, Target, Edit2, Check } from "
 import { useHabits, useHabitStats, useDispatch } from "../../src/data";
 import { getWeeklyCompletions } from "../../src/utils/streaks";
 import { COLORS, FONTS } from "../../src/theme";
+import { ColorPicker } from "../../src/components/ColorPicker";
 
 function StatCard({
   icon: Icon,
@@ -69,6 +70,7 @@ export default function HabitDetailScreen() {
   const [editMode, setEditMode] = useState(false);
   const [editName, setEditName] = useState(habit?.name ?? "");
   const [editEmoji, setEditEmoji] = useState(habit?.emoji ?? "");
+  const [editColor, setEditColor] = useState(habit?.color ?? '#7C3AED');
 
   if (habitsLoading || statsLoading) {
     return (
@@ -107,7 +109,7 @@ export default function HabitDetailScreen() {
   }
 
   const handleSave = () => {
-    send({ type: "UPDATE_HABIT", payload: { id: habit.id, name: editName, emoji: editEmoji } });
+    send({ type: "UPDATE_HABIT", payload: { id: habit.id, name: editName, emoji: editEmoji, color: editColor } });
     setEditMode(false);
   };
 
@@ -155,7 +157,18 @@ export default function HabitDetailScreen() {
             </Text>
           )}
         </View>
-        <Pressable onPress={editMode ? handleSave : () => setEditMode(true)}>
+        <Pressable
+          onPress={
+            editMode
+              ? handleSave
+              : () => {
+                  setEditName(habit.name);
+                  setEditEmoji(habit.emoji ?? "");
+                  setEditColor(habit.color ?? "#7C3AED");
+                  setEditMode(true);
+                }
+          }
+        >
           {editMode ? (
             <Check color={COLORS.success} size={22} />
           ) : (
@@ -163,6 +176,42 @@ export default function HabitDetailScreen() {
           )}
         </Pressable>
       </View>
+
+      {editMode && (
+        <View style={{ paddingHorizontal: 24, paddingBottom: 16 }}>
+          <Text style={{ color: COLORS.text, fontFamily: FONTS.medium, fontSize: 13, marginBottom: 8 }}>
+            Color
+          </Text>
+          <ColorPicker value={editColor} onChange={setEditColor} />
+          <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
+            <Pressable
+              onPress={() => setEditMode(false)}
+              style={{
+                flex: 1,
+                paddingVertical: 12,
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: COLORS.border,
+                alignItems: "center",
+              }}
+            >
+              <Text style={{ color: COLORS.muted, fontFamily: FONTS.medium }}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              onPress={handleSave}
+              style={{
+                flex: 1,
+                paddingVertical: 12,
+                borderRadius: 10,
+                backgroundColor: editColor,
+                alignItems: "center",
+              }}
+            >
+              <Text style={{ color: "#fff", fontFamily: FONTS.medium }}>Save</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
 
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 40 }}

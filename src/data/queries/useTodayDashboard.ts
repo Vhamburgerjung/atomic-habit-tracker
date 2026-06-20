@@ -13,7 +13,7 @@ export type TodayHabitItem = Habit & {
 
 export function useTodayDashboard() {
   const habitsQuery   = useHabits({ isActive: true });
-  const checkoffQuery = useRecentCheckOffs(30);
+  const checkoffQuery = useRecentCheckOffs(112);
 
   const isLoading = habitsQuery.isLoading || checkoffQuery.isLoading;
   const error     = habitsQuery.error ?? checkoffQuery.error;
@@ -31,11 +31,11 @@ export function useTodayDashboard() {
         isCompletedToday: !!todayCheckOff,
         currentStreak:    getEffectiveStreak(habit.id, recentCheckoffs),
         isStreakFrozen:   isStreakFrozen(habit.id, recentCheckoffs),
-        recentDays:       getRecentCheckoffs(habit.id, recentCheckoffs, 30),
+        recentDays:       getRecentCheckoffs(habit.id, recentCheckoffs, 112),
         todayCheckOffId:  todayCheckOff?.id ?? null,
       };
     })
-    .sort((a, b) => Number(a.isCompletedToday) - Number(b.isCompletedToday));
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
   const completionRate = habits.length > 0
     ? items.filter((i) => i.isCompletedToday).length / habits.length

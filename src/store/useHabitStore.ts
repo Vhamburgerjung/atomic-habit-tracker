@@ -3,6 +3,7 @@ export type Habit = {
   userId: string;
   name: string;
   emoji?: string;
+  color?: string;
   cue: string;
   craving: string;
   response: string;

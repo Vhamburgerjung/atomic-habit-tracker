@@ -1,6 +1,6 @@
 import { Tabs } from "expo-router";
 import { View } from "react-native";
-import { Home, List, User } from "lucide-react-native";
+import { Home, List, User, Bot } from "lucide-react-native";
 import { COLORS, FONTS } from "../../src/theme";
 
 function TabIcon({
@@ -68,6 +68,15 @@ export default function TabLayout() {
           title: "Profile",
           tabBarIcon: ({ color, focused }) => (
             <TabIcon icon={User} color={color} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="coach"
+        options={{
+          title: "Coach",
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon icon={Bot} color={color} focused={focused} />
           ),
         }}
       />

@@ -1,5 +1,4 @@
 import { View, Text, Pressable } from "react-native";
-import { Sparkles } from "lucide-react-native";
 import { COLORS, FONTS } from "../theme";
 
 interface EmptyStateProps {
@@ -8,32 +7,57 @@ interface EmptyStateProps {
 
 export function EmptyState({ onPress }: EmptyStateProps) {
   return (
-    <View className="flex-1 items-center justify-center px-8">
-      <View
-        className="w-20 h-20 rounded-full items-center justify-center mb-6"
-        style={{ backgroundColor: `${COLORS.accent}20` }}
-      >
-        <Sparkles color={COLORS.accent} size={36} />
-      </View>
+    <View
+      style={{
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 32,
+        paddingVertical: 64,
+      }}
+    >
       <Text
-        className="text-2xl text-foreground text-center mb-2"
-        style={{ fontFamily: FONTS.display }}
+        style={{
+          fontFamily: FONTS.display,
+          fontSize: 22,
+          color: COLORS.text,
+          textAlign: "center",
+          marginBottom: 10,
+        }}
       >
-        No habits yet
+        Nothing here yet
       </Text>
-      <Text className="text-muted text-center mb-8 text-sm">
-        Build your first habit using the{"\n"}4 Laws of Behavior Change
+      <Text
+        style={{
+          fontFamily: FONTS.body,
+          fontSize: 14,
+          color: COLORS.muted,
+          textAlign: "center",
+          marginBottom: 40,
+          lineHeight: 20,
+        }}
+      >
+        Add your first habit to get started.
       </Text>
       <Pressable
         onPress={onPress}
-        className="px-6 py-3 rounded-xl"
-        style={{ backgroundColor: COLORS.accent }}
+        style={{
+          paddingHorizontal: 24,
+          paddingVertical: 12,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: COLORS.border,
+          backgroundColor: "transparent",
+        }}
       >
         <Text
-          className="text-foreground font-medium"
-          style={{ fontFamily: FONTS.medium }}
+          style={{
+            fontFamily: FONTS.medium,
+            fontSize: 14,
+            color: COLORS.text,
+          }}
         >
-          Create your first habit
+          Add habit
         </Text>
       </Pressable>
     </View>

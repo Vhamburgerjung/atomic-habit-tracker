@@ -15,6 +15,7 @@ export async function dispatch(command: HabitCommand): Promise<CommandResult> {
           user_id:              user.id,
           name:                 p.name,
           emoji:                p.emoji ?? null,
+          color:                p.color ?? null,
           cue:                  p.cue,
           craving:              p.craving,
           response:             p.response,
@@ -38,6 +39,7 @@ export async function dispatch(command: HabitCommand): Promise<CommandResult> {
       const dbPatch: Record<string, unknown> = {};
       if (patch.name              !== undefined) dbPatch.name                 = patch.name;
       if (patch.emoji             !== undefined) dbPatch.emoji                = patch.emoji;
+      if (patch.color             !== undefined) dbPatch.color                = patch.color;
       if (patch.cue               !== undefined) dbPatch.cue                  = patch.cue;
       if (patch.craving           !== undefined) dbPatch.craving              = patch.craving;
       if (patch.response          !== undefined) dbPatch.response             = patch.response;

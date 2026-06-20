@@ -10,8 +10,10 @@ import { JetBrainsMono_400Regular } from "@expo-google-fonts/jetbrains-mono";
 import * as SplashScreen from "expo-splash-screen";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Session } from "@supabase/supabase-js";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../src/lib/supabase";
 import { requestPermissions } from "../src/utils/notifications";
+import { ONBOARDING_KEY } from "./onboarding";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -24,13 +26,28 @@ const queryClient = new QueryClient({
 function AuthGuard({ session }: { session: Session | null | undefined }) {
   const segments = useSegments();
   const router = useRouter();
+  const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
+  const [signingIn, setSigningIn] = useState(false);
 
   useEffect(() => {
-    if (session === undefined) return;
+    AsyncStorage.getItem(ONBOARDING_KEY).then((v) => setOnboardingDone(v === "true"));
+  }, []);
+
+  useEffect(() => {
+    if (session !== null || signingIn) return;
+    setSigningIn(true);
+    supabase.auth.signInAnonymously().finally(() => setSigningIn(false));
+  }, [session, signingIn]);
+
+  useEffect(() => {
+    if (!session || onboardingDone === null) return;
     const inAuthRoute = segments[0] === "auth";
-    if (!session && !inAuthRoute) router.replace("/auth");
-    if (session && inAuthRoute) router.replace("/");
-  }, [session, segments]);
+    const inOnboarding = segments[0] === "onboarding";
+
+    if (inAuthRoute) return;
+    if (!onboardingDone && !inOnboarding) { router.replace("/onboarding"); return; }
+    if (onboardingDone && inOnboarding) { router.replace("/"); return; }
+  }, [session, segments, onboardingDone]);
 
   return null;
 }
@@ -70,6 +87,7 @@ export default function RootLayout() {
           <AuthGuard session={session} />
           <StatusBar style="light" />
           <Stack>
+            <Stack.Screen name="onboarding" options={{ headerShown: false, animation: "fade" }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="auth" options={{ headerShown: false }} />
             <Stack.Screen

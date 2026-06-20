@@ -5,6 +5,7 @@ export type DbHabit = {
   user_id: string;
   name: string;
   emoji: string | null;
+  color: string | null;
   cue: string;
   craving: string;
   response: string;
@@ -33,6 +34,7 @@ export function toHabit(row: DbHabit): Habit {
     userId: row.user_id,
     name: row.name,
     emoji: row.emoji ?? undefined,
+    color: row.color ?? undefined,
     cue: row.cue,
     craving: row.craving,
     response: row.response,

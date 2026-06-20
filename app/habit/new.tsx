@@ -16,6 +16,8 @@ import { ChevronLeft, ChevronRight, Check, X } from "lucide-react-native";
 import { useDispatch } from "../../src/data";
 import type { Habit } from "../../src/store/useHabitStore";
 import { COLORS, FONTS } from "../../src/theme";
+import { ColorPicker } from "../../src/components/ColorPicker";
+import { HABIT_COLORS } from "../../src/theme/habitColors";
 
 // Only imported on native — web falls back to TextInput
 let DateTimePicker: React.ComponentType<any> | null = null;
@@ -53,6 +55,7 @@ const STEPS = [
 type FormData = {
   name: string;
   emoji: string;
+  color: string;
   category: Habit["category"];
   cue: string;
   when: string;
@@ -68,6 +71,7 @@ type FormData = {
 const INITIAL_FORM: FormData = {
   name: "",
   emoji: "✨",
+  color: HABIT_COLORS[0],
   category: "health",
   cue: "",
   when: "",
@@ -148,6 +152,7 @@ export default function NewHabitScreen() {
         payload: {
           name: form.name || form.response || "New Habit",
           emoji: form.emoji,
+          color: form.color,
           category: form.category,
           cue: form.cue,
           craving: form.craving,
@@ -264,6 +269,15 @@ export default function NewHabitScreen() {
                   value={form.emoji}
                   onChangeText={(t) => update("emoji", t)}
                   placeholder="✨"
+                />
+              </View>
+              <View style={{ gap: 6 }}>
+                <Text style={{ color: COLORS.text, fontFamily: FONTS.medium, fontSize: 13 }}>
+                  Color
+                </Text>
+                <ColorPicker
+                  value={form.color}
+                  onChange={(hex) => update("color", hex)}
                 />
               </View>
               <View style={{ gap: 8 }}>

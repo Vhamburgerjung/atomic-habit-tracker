@@ -1,8 +1,11 @@
-import { View, Text, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, ActivityIndicator, Pressable } from "react-native";
+import { useEffect, useState } from "react";
+import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS, FONTS, SPACING, RADIUS } from "../../src/theme";
 import { useUserXP } from "../../src/data/queries/useUserXP";
 import { useUserBadges } from "../../src/data/queries/useUserBadges";
+import { supabase } from "../../src/lib/supabase";
 import type { Badge } from "../../src/utils/badges";
 
 function XPBar({ progress }: { progress: number }) {
@@ -135,8 +138,18 @@ function BadgeGrid({ badges }: { badges: Badge[] }) {
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { data: xpData, isLoading: xpLoading } = useUserXP();
   const { data: badges, isLoading: badgesLoading } = useUserBadges();
+  const [email, setEmail] = useState<string | null>(null);
+  const [isAnon, setIsAnon] = useState<boolean>(false);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setEmail(data.user?.email ?? null);
+      setIsAnon(data.user?.is_anonymous ?? false);
+    });
+  }, []);
 
   const totalXP = xpData?.totalXP ?? 0;
   const level = xpData?.level;
@@ -301,6 +314,32 @@ export default function ProfileScreen() {
             </Text>
           </View>
         ))}
+      </View>
+
+      {/* Account */}
+      <View style={{ marginTop: 24, alignItems: "center" }}>
+        <Text style={{ color: COLORS.muted, fontSize: 11, marginBottom: 8 }}>
+          {isAnon ? "Test-Account (anonym)" : email ?? ""}
+        </Text>
+        <Pressable
+          onPress={async () => {
+            if (isAnon) {
+              router.push("/auth");
+            } else {
+              await supabase.auth.signOut();
+            }
+          }}
+        >
+          <Text
+            style={{
+              color: COLORS.accentLight,
+              fontSize: 13,
+              fontFamily: FONTS.medium,
+            }}
+          >
+            {isAnon ? "Mit E-Mail anmelden" : "Abmelden"}
+          </Text>
+        </Pressable>
       </View>
     </ScrollView>
   );
