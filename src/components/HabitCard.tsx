@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
-import { useEffect } from "react";
-import { Pressable, Text, View } from "react-native";
+import { useEffect, useMemo, useRef } from "react";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import Animated, {
   interpolateColor,
   useAnimatedStyle,
@@ -10,6 +10,7 @@ import Animated, {
 import { COLORS, FONTS } from "../theme";
 import { CheckButton } from "./CheckButton";
 import { useHabitToggle, type CheckedToastInfo } from "../hooks/useHabitToggle";
+import { computeActiveWeekSet, heatmapCellOpacity } from "../utils/heatmap";
 
 interface HabitCardProps {
   id: string;
@@ -20,6 +21,16 @@ interface HabitCardProps {
   createdAt: string;
   isCompletedToday: boolean;
   onCheckedToast?: (info: CheckedToastInfo) => void;
+}
+
+const COLS = 52;
+const ROWS = 7;
+const CELL_SIZE = 12;
+const CELL_GAP = 3;
+const HEATMAP_HORIZONTAL_PADDING = 12;
+
+function toYmd(d: Date): string {
+  return d.toISOString().slice(0, 10);
 }
 
 export function HabitCard({
@@ -57,16 +68,55 @@ export function HabitCard({
     toggle(id, todayStr);
   };
 
-  // Compute the creation date as a yyyy-mm-dd string for comparison
   const createdDateStr = createdAt.slice(0, 10);
 
-  // Build cell date strings: cell i → today minus (111 - i) days
-  const today = new Date();
-  const cellDates: string[] = Array.from({ length: 112 }, (_, i) => {
-    const d = new Date(today);
-    d.setDate(today.getDate() - (111 - i));
-    return d.toISOString().slice(0, 10);
-  });
+  // Build the 7×52 GitHub-style grid.
+  // Today is at row = today's Mon-based weekday, col = COLS-1 (rightmost).
+  // Cell (row, col) date = currentWeekMonday + (col - (COLS-1)) weeks + row days.
+  const { columns, todayCol, todayRow, todayYmd } = useMemo(() => {
+    const today = new Date();
+    const todayYmdStr = toYmd(today);
+    const jsDay = today.getDay();
+    const todayMondayIdx = (jsDay + 6) % 7; // Mon=0..Sun=6
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - todayMondayIdx);
+
+    const cols: { dones: boolean[]; ymds: string[] }[] = [];
+    for (let col = 0; col < COLS; col++) {
+      const dones: boolean[] = [];
+      const ymds: string[] = [];
+      for (let row = 0; row < ROWS; row++) {
+        const d = new Date(monday);
+        d.setDate(monday.getDate() + (col - (COLS - 1)) * 7 + row);
+        const ymd = toYmd(d);
+        const offsetDays = Math.round(
+          (today.getTime() - d.getTime()) / 86_400_000
+        );
+        const idx = recentDays.length - 1 - offsetDays;
+        const isDone =
+          idx >= 0 && idx < recentDays.length ? recentDays[idx] === true : false;
+        ymds.push(ymd);
+        dones.push(isDone);
+      }
+      cols.push({ dones, ymds });
+    }
+
+    return {
+      columns: cols,
+      todayCol: COLS - 1,
+      todayRow: todayMondayIdx,
+      todayYmd: todayYmdStr,
+    };
+  }, [recentDays]);
+
+  const activeWeeks = useMemo(
+    () => computeActiveWeekSet(columns.map((c) => c.dones)),
+    [columns]
+  );
+
+  // Scroll the heatmap to the rightmost column on first layout.
+  const scrollRef = useRef<ScrollView>(null);
+  const didInitialScroll = useRef(false);
 
   return (
     <Animated.View
@@ -81,11 +131,11 @@ export function HabitCard({
       ]}
     >
       <Pressable
-        onPress={() => router.push(`/habit/${id}`)}
+        onLongPress={() => router.push(`/habit/${id}`)}
+        delayLongPress={350}
         style={{
           backgroundColor: COLORS.card,
           borderRadius: 12,
-          paddingHorizontal: 12,
           paddingTop: 1,
           paddingBottom: 12,
         }}
@@ -96,7 +146,8 @@ export function HabitCard({
             flexDirection: "row",
             alignItems: "center",
             gap: 12,
-            marginBottom: 1,
+            marginBottom: 8,
+            paddingHorizontal: 12,
           }}
         >
           {/* Icon box */}
@@ -136,45 +187,74 @@ export function HabitCard({
           />
         </View>
 
-        {/* Heatmap: 4 rows × 28 columns = 112 cells (last 112 days of recentDays) */}
-        <View style={{ gap: 3 }}>
-          {Array.from({ length: 4 }, (_, row) => (
-            <View key={row} style={{ flexDirection: "row", gap: 3 }}>
-              {Array.from({ length: 28 }, (_, col) => {
-                const idx = row * 28 + col;
-                const cellDate = cellDates[idx];
-                const isBeforeCreation = cellDate < createdDateStr;
-                const isDone = recentDays[recentDays.length - 112 + idx] === true;
-
-                let bg: string;
-                let opacity: number;
-                if (isBeforeCreation) {
-                  bg = COLORS.border;
-                  opacity = 1;
-                } else if (isDone) {
-                  bg = renderColor;
-                  opacity = 1;
-                } else {
-                  bg = renderColor;
-                  opacity = 0.08;
-                }
-
-                return (
-                  <View
-                    key={col}
-                    style={{
-                      flex: 1,
-                      aspectRatio: 1,
-                      borderRadius: 2,
-                      backgroundColor: bg,
-                      opacity,
-                    }}
-                  />
-                );
-              })}
-            </View>
-          ))}
-        </View>
+        {/* Heatmap: 7 rows × 52 cols, horizontal-scrollable, bleed-to-edge */}
+        <ScrollView
+          ref={scrollRef}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{
+            paddingHorizontal: HEATMAP_HORIZONTAL_PADDING,
+          }}
+          onContentSizeChange={() => {
+            if (!didInitialScroll.current) {
+              scrollRef.current?.scrollToEnd({ animated: false });
+              didInitialScroll.current = true;
+            }
+          }}
+        >
+          <View style={{ flexDirection: "row", gap: CELL_GAP }}>
+            {columns.map((column, col) => {
+              const isActiveWeek = activeWeeks.has(col);
+              return (
+                <View key={col} style={{ gap: CELL_GAP }}>
+                  {column.dones.map((isDone, row) => {
+                    const cellYmd = column.ymds[row];
+                    const isBeforeCreation = cellYmd < createdDateStr;
+                    const isToday = col === todayCol && row === todayRow;
+                    const opacity = heatmapCellOpacity({
+                      isDone,
+                      isInActiveWeek: isActiveWeek && !isBeforeCreation,
+                    });
+                    return (
+                      <View
+                        key={row}
+                        style={{
+                          width: CELL_SIZE,
+                          height: CELL_SIZE,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <View
+                          style={{
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            borderRadius: 2,
+                            backgroundColor: renderColor,
+                            opacity,
+                          }}
+                        />
+                        {isToday && (
+                          <View
+                            style={{
+                              width: 4,
+                              height: 4,
+                              borderRadius: 2,
+                              backgroundColor: COLORS.accent,
+                            }}
+                          />
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              );
+            })}
+          </View>
+        </ScrollView>
       </Pressable>
     </Animated.View>
   );
