@@ -71,7 +71,7 @@ export default function TodayScreen() {
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{
-          paddingHorizontal: viewMode === "week" ? 0 : 24,
+          paddingHorizontal: 24,
           paddingBottom: 100,
           paddingTop:
             insets.top +
@@ -86,7 +86,7 @@ export default function TodayScreen() {
         {activeHabits.length === 0 ? (
           <EmptyState onPress={() => router.push("/habit/new")} />
         ) : viewMode === "week" ? (
-          <View>
+          <View style={{ paddingTop: 16 }}>
             {activeHabits.map((habit) => (
               <HabitWeekRow
                 key={habit.id}

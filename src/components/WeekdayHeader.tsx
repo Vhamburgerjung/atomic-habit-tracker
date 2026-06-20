@@ -1,6 +1,12 @@
 import { View, Text } from "react-native";
 import { COLORS, FONTS } from "../theme";
-import { SQUARE_SIZE, SQUARE_GAP, ROW_HORIZONTAL_PADDING, SQUARES_AREA_WIDTH } from "./habitWeekLayout";
+import {
+  SQUARE_SIZE,
+  SQUARE_GAP,
+  ROW_HORIZONTAL_PADDING,
+  LIST_OUTER_PADDING,
+  SQUARES_AREA_WIDTH,
+} from "./habitWeekLayout";
 
 const WEEKDAY_INITIALS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 
@@ -11,20 +17,16 @@ interface WeekdayHeaderProps {
 export const WEEKDAY_HEADER_HEIGHT = 32;
 
 export function WeekdayHeader({ topOffset }: WeekdayHeaderProps) {
-  // JS Date getDay(): 0 = Sun, 1 = Mon, ... 6 = Sat.
-  // We want Monday-based index: Mon=0 ... Sun=6.
-  const today = new Date();
-  const jsDay = today.getDay();
+  // Monday-based weekday index for today: Mon=0 ... Sun=6.
+  const jsDay = new Date().getDay();
   const todayMondayIdx = (jsDay + 6) % 7;
 
-  // Build a sequence of 7 weekday initials with today as the LAST (rightmost) element.
-  // Going from oldest (6 days ago) on the left to today on the right.
-  const labels: string[] = [];
-  for (let col = 0; col < 7; col++) {
+  // Rolling 7-day window: col 0 = 6 days ago, col 6 = today.
+  const labels: string[] = Array.from({ length: 7 }, (_, col) => {
     const daysAgo = 6 - col;
     const idx = (todayMondayIdx - daysAgo + 7 * 7) % 7;
-    labels.push(WEEKDAY_INITIALS[idx]);
-  }
+    return WEEKDAY_INITIALS[idx];
+  });
 
   return (
     <View
@@ -40,13 +42,13 @@ export function WeekdayHeader({ topOffset }: WeekdayHeaderProps) {
         borderBottomColor: COLORS.border,
         flexDirection: "row",
         alignItems: "center",
-        paddingHorizontal: ROW_HORIZONTAL_PADDING,
+        paddingHorizontal: LIST_OUTER_PADDING + ROW_HORIZONTAL_PADDING,
       }}
     >
-      {/* Left spacer mirrors row's label area */}
+      {/* Left spacer mirrors row's icon + name area */}
       <View style={{ flex: 1 }} />
 
-      {/* Squares area mirrors row layout */}
+      {/* Squares area mirrors row's squares (right-aligned) */}
       <View
         style={{
           width: SQUARES_AREA_WIDTH,
