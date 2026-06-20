@@ -5,13 +5,17 @@ import { useRouter } from "expo-router";
 import { Plus } from "lucide-react-native";
 import { useTodayDashboard, useHabitRealtime } from "../../src/data";
 import { HabitCard } from "../../src/components/HabitCard";
+import { HabitCardCompact } from "../../src/components/HabitCardCompact";
 import { EmptyState } from "../../src/components/EmptyState";
 import { XPToast } from "../../src/components/XPToast";
 import { ViewModeSwitcher } from "../../src/components/ViewModeSwitcher";
+import { WeekdayHeader, WEEKDAY_HEADER_HEIGHT } from "../../src/components/WeekdayHeader";
+import { HabitWeekRow } from "../../src/components/HabitWeekRow";
 import { COLORS, FONTS } from "../../src/theme";
 import { useViewMode } from "../../src/hooks/useViewMode";
 
 const TAB_BAR_HEIGHT = 64;
+const TOP_BAR_HEIGHT = 52;
 
 export default function TodayScreen() {
   useHabitRealtime();
@@ -25,8 +29,6 @@ export default function TodayScreen() {
   if (isLoading) {
     return <ActivityIndicator color={COLORS.accent} style={{ flex: 1, marginTop: 100 }} />;
   }
-
-  const TOP_BAR_HEIGHT = 52;
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.background }}>
@@ -62,18 +64,66 @@ export default function TodayScreen() {
         </View>
       </View>
 
+      {viewMode === "week" && activeHabits.length > 0 && (
+        <WeekdayHeader topOffset={insets.top + TOP_BAR_HEIGHT} />
+      )}
+
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{
-          paddingHorizontal: 24,
+          paddingHorizontal: viewMode === "week" ? 0 : 24,
           paddingBottom: 100,
-          paddingTop: insets.top + TOP_BAR_HEIGHT,
+          paddingTop:
+            insets.top +
+            TOP_BAR_HEIGHT +
+            (viewMode === "week" && activeHabits.length > 0
+              ? WEEKDAY_HEADER_HEIGHT
+              : 0),
         }}
         showsVerticalScrollIndicator={false}
       >
         {/* Habit List or Empty State */}
         {activeHabits.length === 0 ? (
           <EmptyState onPress={() => router.push("/habit/new")} />
+        ) : viewMode === "week" ? (
+          <View>
+            {activeHabits.map((habit) => (
+              <HabitWeekRow
+                key={habit.id}
+                id={habit.id}
+                name={habit.name}
+                emoji={habit.emoji ?? ""}
+                color={habit.color}
+                recentDays={habit.recentDays}
+                createdAt={habit.createdAt}
+                onCheckedToast={(info) => setCheckOffToast(info)}
+              />
+            ))}
+          </View>
+        ) : viewMode === "compact" ? (
+          <View
+            style={{
+              paddingTop: 16,
+              flexDirection: "row",
+              flexWrap: "wrap",
+              gap: 12,
+            }}
+          >
+            {activeHabits.map((habit) => (
+              <View key={habit.id} style={{ width: "48%" }}>
+                <HabitCardCompact
+                  id={habit.id}
+                  name={habit.name}
+                  emoji={habit.emoji ?? ""}
+                  color={habit.color}
+                  recentDays={habit.recentDays}
+                  createdAt={habit.createdAt}
+                  isCompletedToday={habit.isCompletedToday}
+                  onCheckedToast={(info) => setCheckOffToast(info)}
+                />
+              </View>
+            ))}
+          </View>
         ) : (
           <View style={{ paddingTop: 16 }}>
             {activeHabits.map((habit) => (
