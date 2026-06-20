@@ -106,11 +106,11 @@ export default function TodayScreen() {
               paddingTop: 16,
               flexDirection: "row",
               flexWrap: "wrap",
-              gap: 12,
+              gap: 8,
             }}
           >
             {activeHabits.map((habit) => (
-              <View key={habit.id} style={{ width: "48%" }}>
+              <View key={habit.id} style={{ width: "31.5%" }}>
                 <HabitCardCompact
                   id={habit.id}
                   name={habit.name}
