@@ -10,6 +10,8 @@ export type Habit = {
   reward: string;
   identityStatement?: string;
   twoMinuteVersion?: string;
+  startSize?: '2min' | '5min' | '15min' | '30min';
+  neverMissTwice?: boolean;
   frequency: "daily" | "weekly" | "custom";
   targetDaysPerWeek?: number;
   reminderTime?: string;

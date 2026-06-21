@@ -12,6 +12,8 @@ export type DbHabit = {
   reward: string;
   identity_statement: string | null;
   two_minute_version: string | null;
+  start_size: '2min' | '5min' | '15min' | '30min' | null;
+  never_miss_twice: boolean | null;
   frequency: 'daily' | 'weekly' | 'custom';
   target_days_per_week: number | null;
   reminder_time: string | null;
@@ -41,6 +43,8 @@ export function toHabit(row: DbHabit): Habit {
     reward: row.reward,
     identityStatement: row.identity_statement ?? undefined,
     twoMinuteVersion: row.two_minute_version ?? undefined,
+    startSize: row.start_size ?? undefined,
+    neverMissTwice: row.never_miss_twice ?? undefined,
     frequency: row.frequency,
     targetDaysPerWeek: row.target_days_per_week ?? undefined,
     reminderTime: row.reminder_time ?? undefined,

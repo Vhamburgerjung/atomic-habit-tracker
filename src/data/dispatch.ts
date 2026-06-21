@@ -22,6 +22,8 @@ export async function dispatch(command: HabitCommand): Promise<CommandResult> {
           reward:               p.reward,
           identity_statement:   p.identityStatement ?? null,
           two_minute_version:   p.twoMinuteVersion ?? null,
+          start_size:           p.startSize ?? null,
+          never_miss_twice:     p.neverMissTwice ?? null,
           frequency:            p.frequency,
           target_days_per_week: p.targetDaysPerWeek ?? null,
           reminder_time:        p.reminderTime ?? null,
@@ -46,6 +48,8 @@ export async function dispatch(command: HabitCommand): Promise<CommandResult> {
       if (patch.reward            !== undefined) dbPatch.reward               = patch.reward;
       if (patch.identityStatement !== undefined) dbPatch.identity_statement   = patch.identityStatement;
       if (patch.twoMinuteVersion  !== undefined) dbPatch.two_minute_version   = patch.twoMinuteVersion;
+      if (patch.startSize         !== undefined) dbPatch.start_size           = patch.startSize;
+      if (patch.neverMissTwice    !== undefined) dbPatch.never_miss_twice     = patch.neverMissTwice;
       if (patch.frequency         !== undefined) dbPatch.frequency            = patch.frequency;
       if (patch.targetDaysPerWeek !== undefined) dbPatch.target_days_per_week = patch.targetDaysPerWeek;
       if (patch.reminderTime      !== undefined) dbPatch.reminder_time        = patch.reminderTime;
