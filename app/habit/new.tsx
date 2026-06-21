@@ -1,4 +1,13 @@
-import { useState } from "react";
+/**
+ * Slice 021 — Onboarding Wizard (replaces 4-Gesetze wizard)
+ *
+ * Step 1  Name + Color
+ * Step 2  Identity Statement
+ * Step 3  Anchor (Implementation Intention) + Time
+ * Step 4  Review + Launch
+ */
+
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -8,553 +17,998 @@ import {
   KeyboardAvoidingView,
   Platform,
   Switch,
-  ActivityIndicator,
 } from "react-native";
+import Animated, {
+  FadeInDown,
+  FadeInRight,
+  ZoomIn,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { ChevronLeft, ChevronRight, Check, X } from "lucide-react-native";
+import { ChevronLeft, X } from "lucide-react-native";
+import * as Haptics from "expo-haptics";
 import { useDispatch } from "../../src/data";
-import type { Habit } from "../../src/store/useHabitStore";
-import { COLORS, FONTS } from "../../src/theme";
-import { ColorPicker } from "../../src/components/ColorPicker";
 import { HABIT_COLORS } from "../../src/theme/habitColors";
+import { hexToRgba } from "../../src/theme/colorUtils";
 
-// Only imported on native — web falls back to TextInput
-let DateTimePicker: React.ComponentType<any> | null = null;
-if (Platform.OS !== "web") {
-  DateTimePicker = require("@react-native-community/datetimepicker").default;
-}
+// ─── Design tokens (isolated from global theme per brief) ───────────────────
+const BG = "#0A0A0F";
+const CARD = "#1C1C1E";
+const CARD2 = "#161618";
+const WHITE = "#fff";
+const MUTED = "#8E8E93";
+const MUTED2 = "#AEAEB2";
+const SEPARATOR = "rgba(255,255,255,0.08)";
+const BORDER = "#48484A";
+const BORDER2 = "#636366";
+const SURFACE = "#39393D";
+const SURFACE2 = "#2C2C2E";
+const SURFACE3 = "#6E6E73";
 
-const STEPS = [
-  {
-    id: 1,
-    title: "Cue",
-    subtitle: "Make it obvious",
-    law: "1st Law",
-  },
-  {
-    id: 2,
-    title: "Craving",
-    subtitle: "Make it attractive",
-    law: "2nd Law",
-  },
-  {
-    id: 3,
-    title: "Response",
-    subtitle: "Make it easy",
-    law: "3rd Law",
-  },
-  {
-    id: 4,
-    title: "Reward",
-    subtitle: "Make it satisfying",
-    law: "4th Law",
-  },
+// ─── Anchor presets ──────────────────────────────────────────────────────────
+const ANCHOR_PRESETS = [
+  "dem Aufwachen",
+  "dem Morgenkaffee",
+  "dem Frühstück",
+  "der Dusche",
+  "dem Mittagessen",
+  "der Arbeit",
+  "dem Sport",
+  "dem Abendessen",
+  "dem Zähneputzen",
+  "dem Schlafengehen",
 ];
 
-type FormData = {
-  name: string;
-  emoji: string;
-  color: string;
-  category: Habit["category"];
-  cue: string;
-  when: string;
-  reminderTime: string;
-  identityStatement: string;
-  craving: string;
-  response: string;
-  twoMinuteEnabled: boolean;
-  twoMinuteVersion: string;
-  reward: string;
-};
-
-const INITIAL_FORM: FormData = {
-  name: "",
-  emoji: "✨",
-  color: HABIT_COLORS[0],
-  category: "health",
-  cue: "",
-  when: "",
-  reminderTime: "",
-  identityStatement: "",
-  craving: "",
-  response: "",
-  twoMinuteEnabled: false,
-  twoMinuteVersion: "",
-  reward: "",
-};
-
-const CATEGORIES: { value: Habit["category"]; label: string; emoji: string }[] = [
-  { value: "health", label: "Health", emoji: "💪" },
-  { value: "learning", label: "Learning", emoji: "📚" },
-  { value: "mindfulness", label: "Mind", emoji: "🧘" },
-  { value: "social", label: "Social", emoji: "🤝" },
-  { value: "other", label: "Other", emoji: "⭐" },
+// ─── Identity presets ────────────────────────────────────────────────────────
+const IDENTITY_PRESETS = [
+  { label: "Bewegung", title: "Ich bin jemand der sich bewegt" },
+  { label: "Gesundheit", title: "Ich bin jemand der auf sich achtet" },
+  { label: "Lernen", title: "Ich bin jemand der täglich lernt" },
+  { label: "Mindfulness", title: "Ich bin jemand der im Moment lebt" },
+  { label: "Produktivität", title: "Ich bin jemand der Dinge erledigt" },
+  { label: "Soziales", title: "Ich bin jemand der Verbindungen pflegt" },
 ];
 
-function StyledInput({
-  value,
-  onChangeText,
-  placeholder,
-  multiline,
+// ─── Time segment options ────────────────────────────────────────────────────
+const TIME_OPTIONS: { label: string; value: "2min" | "5min" | "15min" | "30min" }[] = [
+  { label: "2 Min", value: "2min" },
+  { label: "5 Min", value: "5min" },
+  { label: "15 Min", value: "15min" },
+  { label: "30 Min", value: "30min" },
+];
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+type StartSize = "2min" | "5min" | "15min" | "30min";
+
+// ─── Step Indicator ──────────────────────────────────────────────────────────
+function StepIndicator({
+  currentStep,
+  accentColor,
 }: {
-  value: string;
-  onChangeText: (t: string) => void;
-  placeholder: string;
-  multiline?: boolean;
+  currentStep: number;
+  accentColor: string;
 }) {
   return (
-    <TextInput
-      value={value}
-      onChangeText={onChangeText}
-      placeholder={placeholder}
-      placeholderTextColor={COLORS.muted}
-      multiline={multiline}
-      style={{
-        backgroundColor: COLORS.background,
-        borderColor: COLORS.border,
-        borderWidth: 1,
-        borderRadius: 10,
-        paddingHorizontal: 14,
-        paddingVertical: 12,
-        color: COLORS.text,
-        fontFamily: FONTS.body,
-        fontSize: 15,
-        minHeight: multiline ? 80 : undefined,
-        textAlignVertical: multiline ? "top" : undefined,
-      }}
-    />
+    <View style={{ flexDirection: "row", gap: 6, flex: 1 }}>
+      {[1, 2, 3, 4].map((i) => {
+        const active = currentStep >= i;
+        return (
+          <Animated.View
+            key={i}
+            style={{
+              flex: 1,
+              height: 3,
+              borderRadius: 2,
+              backgroundColor: active ? accentColor : "rgba(255,255,255,0.12)",
+            }}
+          />
+        );
+      })}
+    </View>
   );
 }
 
+// ─── CTA Button ─────────────────────────────────────────────────────────────
+function CtaButton({
+  label,
+  onPress,
+  disabled,
+  accentColor,
+}: {
+  label: string;
+  onPress: () => void;
+  disabled: boolean;
+  accentColor: string;
+}) {
+  const scale = useSharedValue(1);
+
+  // Pulse animation (2.4s repeat)
+  const pulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  // Start pulse on mount
+  useEffect(() => {
+    scale.value = withRepeat(
+      withSequence(
+        withTiming(1.016, { duration: 1200 }),
+        withTiming(1, { duration: 1200 })
+      ),
+      -1,
+      false
+    );
+  }, []);
+
+  const handlePress = () => {
+    if (disabled) return;
+    // Bounce: replace pulse with one-shot bounce
+    scale.value = withSequence(
+      withTiming(0.93, { duration: 80 }),
+      withTiming(1.05, { duration: 200 }),
+      withTiming(1, { duration: 220 })
+    );
+    onPress();
+  };
+
+  return (
+    <Animated.View style={[pulseStyle, { borderRadius: 16, overflow: "hidden" }]}>
+      <Pressable
+        onPress={handlePress}
+        style={{
+          height: 56,
+          borderRadius: 16,
+          backgroundColor: disabled ? BORDER : accentColor,
+          alignItems: "center",
+          justifyContent: "center",
+          shadowColor: accentColor,
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: disabled ? 0 : 0.45,
+          shadowRadius: 16,
+          elevation: disabled ? 0 : 8,
+        }}
+      >
+        <Text
+          style={{
+            color: disabled ? MUTED : WHITE,
+            fontSize: 17,
+            fontWeight: "600",
+            letterSpacing: 0.2,
+          }}
+        >
+          {label}
+        </Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+// ─── Step 1: Name + Color ────────────────────────────────────────────────────
+function Step1({
+  name,
+  setName,
+  selectedColor,
+  setSelectedColor,
+}: {
+  name: string;
+  setName: (v: string) => void;
+  selectedColor: string | null;
+  setSelectedColor: (v: string) => void;
+}) {
+  return (
+    <Animated.View entering={FadeInRight.duration(300)} style={{ gap: 28 }}>
+      {/* Section: Name */}
+      <View style={{ gap: 12 }}>
+        <Text style={{ color: MUTED, fontSize: 12, fontWeight: "600", letterSpacing: 1, textTransform: "uppercase" }}>
+          Habit-Name
+        </Text>
+        <TextInput
+          value={name}
+          onChangeText={setName}
+          placeholder="z.B. Jeden Tag meditieren"
+          placeholderTextColor={MUTED}
+          style={{
+            backgroundColor: CARD,
+            borderRadius: 12,
+            paddingHorizontal: 16,
+            paddingVertical: 14,
+            color: WHITE,
+            fontSize: 17,
+            fontWeight: "500",
+          }}
+          returnKeyType="done"
+          autoFocus
+        />
+      </View>
+
+      {/* Section: Color */}
+      <View style={{ gap: 12 }}>
+        <Text style={{ color: MUTED, fontSize: 12, fontWeight: "600", letterSpacing: 1, textTransform: "uppercase" }}>
+          Farbe wählen
+        </Text>
+        <View
+          style={{
+            flexDirection: "row",
+            flexWrap: "wrap",
+            gap: 10,
+          }}
+        >
+          {HABIT_COLORS.map((hex) => {
+            const isSelected = selectedColor === hex;
+            return (
+              <Pressable
+                key={hex}
+                onPress={() => setSelectedColor(hex)}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  backgroundColor: hex,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderWidth: isSelected ? 3 : 0,
+                  borderColor: isSelected ? WHITE : "transparent",
+                  shadowColor: hex,
+                  shadowOpacity: isSelected ? 0.7 : 0,
+                  shadowRadius: 8,
+                  shadowOffset: { width: 0, height: 0 },
+                  elevation: isSelected ? 6 : 0,
+                }}
+              >
+                {isSelected && (
+                  <View
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: 5,
+                      backgroundColor: WHITE,
+                      opacity: 0.9,
+                    }}
+                  />
+                )}
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+    </Animated.View>
+  );
+}
+
+// ─── Step 2: Identity ────────────────────────────────────────────────────────
+function Step2({
+  selectedPreset,
+  setSelectedPreset,
+  customIdentity,
+  setCustomIdentity,
+  showCustom,
+  setShowCustom,
+  accentColor,
+}: {
+  selectedPreset: string | null;
+  setSelectedPreset: (v: string | null) => void;
+  customIdentity: string;
+  setCustomIdentity: (v: string) => void;
+  showCustom: boolean;
+  setShowCustom: (v: boolean) => void;
+  accentColor: string;
+}) {
+  return (
+    <Animated.View entering={FadeInRight.duration(300)} style={{ gap: 24 }}>
+      <View style={{ gap: 8 }}>
+        <Text style={{ color: WHITE, fontSize: 22, fontWeight: "700", lineHeight: 28 }}>
+          Wer willst du werden?
+        </Text>
+        <Text style={{ color: MUTED2, fontSize: 15, lineHeight: 22 }}>
+          Gewohnheiten, die zu deiner Identität passen, bleiben.
+        </Text>
+      </View>
+
+      <View style={{ gap: 10 }}>
+        {IDENTITY_PRESETS.map((preset, i) => {
+          const isActive = selectedPreset === preset.title && !showCustom;
+          return (
+            <Animated.View key={preset.label} entering={FadeInDown.delay(i * 60).duration(280)}>
+              <Pressable
+                onPress={() => {
+                  setSelectedPreset(preset.title);
+                  setShowCustom(false);
+                }}
+                style={{
+                  backgroundColor: isActive ? hexToRgba(accentColor, 0.15) : CARD,
+                  borderWidth: 1,
+                  borderColor: isActive ? accentColor : "transparent",
+                  borderRadius: 12,
+                  paddingHorizontal: 16,
+                  paddingVertical: 14,
+                }}
+              >
+                <Text
+                  style={{
+                    color: isActive ? accentColor : WHITE,
+                    fontSize: 15,
+                    fontWeight: isActive ? "600" : "400",
+                  }}
+                >
+                  {preset.title}
+                </Text>
+              </Pressable>
+            </Animated.View>
+          );
+        })}
+
+        {/* Custom identity */}
+        <Animated.View entering={FadeInDown.delay(IDENTITY_PRESETS.length * 60).duration(280)}>
+          <Pressable
+            onPress={() => {
+              setShowCustom(true);
+              setSelectedPreset(null);
+            }}
+            style={{
+              backgroundColor: showCustom ? hexToRgba(accentColor, 0.1) : CARD,
+              borderWidth: 1,
+              borderColor: showCustom ? accentColor : BORDER2,
+              borderRadius: 12,
+              borderStyle: "dashed",
+              paddingHorizontal: 16,
+              paddingVertical: 14,
+            }}
+          >
+            <Text style={{ color: showCustom ? accentColor : MUTED, fontSize: 15 }}>
+              + Eigene Identität
+            </Text>
+          </Pressable>
+        </Animated.View>
+
+        {showCustom && (
+          <Animated.View entering={ZoomIn.duration(250)}>
+            <TextInput
+              value={customIdentity}
+              onChangeText={setCustomIdentity}
+              placeholder="Ich bin jemand der..."
+              placeholderTextColor={MUTED}
+              autoFocus
+              style={{
+                backgroundColor: CARD,
+                borderRadius: 12,
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+                color: WHITE,
+                fontSize: 15,
+                borderWidth: 1,
+                borderColor: accentColor,
+              }}
+            />
+          </Animated.View>
+        )}
+      </View>
+    </Animated.View>
+  );
+}
+
+// ─── Step 3: Anchor + Time ───────────────────────────────────────────────────
+function Step3({
+  habitName,
+  selectedAnchor,
+  setSelectedAnchor,
+  customAnchor,
+  setCustomAnchor,
+  showCustomAnchor,
+  setShowCustomAnchor,
+  startSize,
+  setStartSize,
+  accentColor,
+}: {
+  habitName: string;
+  selectedAnchor: string | null;
+  setSelectedAnchor: (v: string | null) => void;
+  customAnchor: string;
+  setCustomAnchor: (v: string) => void;
+  showCustomAnchor: boolean;
+  setShowCustomAnchor: (v: boolean) => void;
+  startSize: StartSize;
+  setStartSize: (v: StartSize) => void;
+  accentColor: string;
+}) {
+  // The effective anchor text for preview
+  const anchorText = showCustomAnchor ? customAnchor : (selectedAnchor ?? "");
+  const hasAnchor = anchorText.trim().length > 0;
+  const hasName = habitName.trim().length > 0;
+  const showPreview = hasAnchor && hasName;
+
+  // Build sentence tokens for fadeUp stagger
+  // "Nachdem ich [anchor], werde ich [name]."
+  const tokens = showPreview
+    ? [
+        { text: "Nachdem", colored: false },
+        { text: "ich", colored: false },
+        { text: anchorText + ",", colored: true },
+        { text: "werde", colored: false },
+        { text: "ich", colored: false },
+        { text: habitName + ".", colored: true },
+      ]
+    : [];
+
+  return (
+    <Animated.View entering={FadeInRight.duration(300)} style={{ gap: 24 }}>
+      <View style={{ gap: 8 }}>
+        <Text style={{ color: WHITE, fontSize: 22, fontWeight: "700", lineHeight: 28 }}>
+          Wann tust du es?
+        </Text>
+        <Text style={{ color: MUTED2, fontSize: 15, lineHeight: 22 }}>
+          Verknüpfe deine Gewohnheit mit einem bestehenden Anker.
+        </Text>
+      </View>
+
+      {/* Anchor chips — horizontal scroll */}
+      <View style={{ gap: 10 }}>
+        <Text style={{ color: MUTED, fontSize: 12, fontWeight: "600", letterSpacing: 1, textTransform: "uppercase" }}>
+          Nachdem ich ...
+        </Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 8, paddingRight: 8 }}
+        >
+          {ANCHOR_PRESETS.map((anchor) => {
+            const isActive = selectedAnchor === anchor && !showCustomAnchor;
+            return (
+              <Pressable
+                key={anchor}
+                onPress={() => {
+                  setSelectedAnchor(anchor);
+                  setShowCustomAnchor(false);
+                }}
+                style={{
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                  borderRadius: 20,
+                  backgroundColor: isActive ? accentColor : CARD,
+                  borderWidth: 1,
+                  borderColor: isActive ? accentColor : BORDER2,
+                }}
+              >
+                <Text
+                  style={{
+                    color: isActive ? WHITE : MUTED2,
+                    fontSize: 14,
+                    fontWeight: isActive ? "600" : "400",
+                  }}
+                >
+                  {anchor}
+                </Text>
+              </Pressable>
+            );
+          })}
+
+          {/* Custom anchor chip */}
+          <Pressable
+            onPress={() => {
+              setShowCustomAnchor(true);
+              setSelectedAnchor(null);
+            }}
+            style={{
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+              borderRadius: 20,
+              backgroundColor: showCustomAnchor ? hexToRgba(accentColor, 0.15) : "transparent",
+              borderWidth: 1,
+              borderColor: showCustomAnchor ? accentColor : BORDER2,
+              borderStyle: "dashed",
+            }}
+          >
+            <Text style={{ color: showCustomAnchor ? accentColor : MUTED, fontSize: 14 }}>
+              + Eigener
+            </Text>
+          </Pressable>
+        </ScrollView>
+
+        {showCustomAnchor && (
+          <Animated.View entering={ZoomIn.duration(250)}>
+            <TextInput
+              value={customAnchor}
+              onChangeText={setCustomAnchor}
+              placeholder="z.B. dem Mittagsspaziergang"
+              placeholderTextColor={MUTED}
+              autoFocus
+              style={{
+                backgroundColor: CARD,
+                borderRadius: 12,
+                paddingHorizontal: 16,
+                paddingVertical: 12,
+                color: WHITE,
+                fontSize: 15,
+                borderWidth: 1,
+                borderColor: accentColor,
+              }}
+            />
+          </Animated.View>
+        )}
+      </View>
+
+      {/* Habit-stack preview */}
+      {showPreview && (
+        <Animated.View
+          key={`${anchorText}-${habitName}`}
+          entering={ZoomIn.duration(280)}
+          style={{
+            backgroundColor: CARD,
+            borderRadius: 14,
+            padding: 16,
+            flexDirection: "row",
+            flexWrap: "wrap",
+            gap: 4,
+            alignItems: "baseline",
+          }}
+        >
+          {tokens.map((token, i) => (
+            <Animated.Text
+              key={`${token.text}-${i}`}
+              entering={FadeInDown.delay(i * 60).duration(260)}
+              style={{
+                color: token.colored ? accentColor : "#E5E5EA",
+                fontSize: 16,
+                fontWeight: token.colored ? "600" : "500",
+                lineHeight: 24,
+              }}
+            >
+              {token.text}{" "}
+            </Animated.Text>
+          ))}
+        </Animated.View>
+      )}
+
+      {/* Time segment */}
+      <View style={{ gap: 10 }}>
+        <Text style={{ color: MUTED, fontSize: 12, fontWeight: "600", letterSpacing: 1, textTransform: "uppercase" }}>
+          Startgröße
+        </Text>
+        <View
+          style={{
+            backgroundColor: CARD,
+            borderRadius: 12,
+            padding: 4,
+            flexDirection: "row",
+          }}
+        >
+          {TIME_OPTIONS.map((opt) => {
+            const isActive = startSize === opt.value;
+            return (
+              <Pressable
+                key={opt.value}
+                onPress={() => setStartSize(opt.value)}
+                style={{
+                  flex: 1,
+                  paddingVertical: 10,
+                  borderRadius: 9,
+                  backgroundColor: isActive ? accentColor : "transparent",
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{
+                    color: isActive ? WHITE : MUTED,
+                    fontSize: 14,
+                    fontWeight: isActive ? "600" : "400",
+                  }}
+                >
+                  {opt.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+    </Animated.View>
+  );
+}
+
+// ─── Step 4: Review + Launch ─────────────────────────────────────────────────
+function Step4({
+  habitName,
+  selectedColor,
+  identityText,
+  anchorText,
+  startSize,
+  neverMissTwice,
+  setNeverMissTwice,
+  accentColor,
+}: {
+  habitName: string;
+  selectedColor: string;
+  identityText: string;
+  anchorText: string;
+  startSize: StartSize;
+  neverMissTwice: boolean;
+  setNeverMissTwice: (v: boolean) => void;
+  accentColor: string;
+}) {
+  const timeLabelMap: Record<StartSize, string> = {
+    "2min": "2 Min",
+    "5min": "5 Min",
+    "15min": "15 Min",
+    "30min": "30 Min",
+  };
+
+  return (
+    <Animated.View entering={FadeInRight.duration(300)} style={{ gap: 24 }}>
+      <View style={{ gap: 8 }}>
+        <Text style={{ color: WHITE, fontSize: 22, fontWeight: "700", lineHeight: 28 }}>
+          Bereit zum Start?
+        </Text>
+        <Text style={{ color: MUTED2, fontSize: 15, lineHeight: 22 }}>
+          Dein Habit auf einen Blick.
+        </Text>
+      </View>
+
+      {/* Summary card */}
+      <Animated.View
+        entering={ZoomIn.duration(280)}
+        style={{
+          backgroundColor: CARD,
+          borderRadius: 16,
+          overflow: "hidden",
+        }}
+      >
+        {/* Top gradient bar (simulated without LinearGradient) */}
+        <View
+          style={{
+            height: 5,
+            backgroundColor: accentColor,
+            opacity: 1,
+          }}
+        />
+
+        <View style={{ padding: 20, gap: 12 }}>
+          {/* Color dot + Name */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <View
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: 9,
+                backgroundColor: selectedColor,
+                shadowColor: selectedColor,
+                shadowOpacity: 0.7,
+                shadowRadius: 6,
+                shadowOffset: { width: 0, height: 0 },
+                elevation: 4,
+              }}
+            />
+            <Text style={{ color: WHITE, fontSize: 22, fontWeight: "700", flex: 1 }}>
+              {habitName}
+            </Text>
+          </View>
+
+          {/* Identity */}
+          <Text style={{ color: MUTED2, fontSize: 15, lineHeight: 22 }}>
+            {identityText}
+          </Text>
+
+          {/* Hairline */}
+          <View style={{ height: 1, backgroundColor: SEPARATOR }} />
+
+          {/* Implementation intention */}
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 3, alignItems: "baseline" }}>
+            <Text style={{ color: "#E5E5EA", fontSize: 14, fontWeight: "500" }}>Nachdem ich</Text>
+            <Text style={{ color: accentColor, fontSize: 14, fontWeight: "600" }}> {anchorText},</Text>
+            <Text style={{ color: "#E5E5EA", fontSize: 14, fontWeight: "500" }}> werde ich</Text>
+            <Text style={{ color: accentColor, fontSize: 14, fontWeight: "600" }}> {habitName}</Text>
+            <Text style={{ color: "#E5E5EA", fontSize: 14, fontWeight: "500" }}> für</Text>
+            <Text style={{ color: MUTED, fontSize: 14, fontWeight: "500" }}> {timeLabelMap[startSize]}.</Text>
+          </View>
+        </View>
+      </Animated.View>
+
+      {/* Never-miss-twice toggle */}
+      <View
+        style={{
+          backgroundColor: CARD,
+          borderRadius: 14,
+          overflow: "hidden",
+        }}
+      >
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            padding: 16,
+            gap: 14,
+          }}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: WHITE, fontSize: 15, fontWeight: "600" }}>
+              Nie zweimal auslassen
+            </Text>
+            <Text style={{ color: MUTED, fontSize: 13, marginTop: 3, lineHeight: 18 }}>
+              Wenn du einen Tag verpasst, komm am nächsten zurück.
+            </Text>
+          </View>
+          <Switch
+            value={neverMissTwice}
+            onValueChange={setNeverMissTwice}
+            trackColor={{ true: accentColor, false: SURFACE }}
+            thumbColor={WHITE}
+          />
+        </View>
+      </View>
+
+      {/* Jemanden hinzufügen — Soon */}
+      <View style={{ opacity: 0.6 }}>
+        <View
+          style={{
+            backgroundColor: CARD,
+            borderRadius: 14,
+            flexDirection: "row",
+            alignItems: "center",
+            padding: 16,
+            gap: 14,
+          }}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: WHITE, fontSize: 15, fontWeight: "600" }}>
+              Jemanden hinzufügen
+            </Text>
+            <Text style={{ color: MUTED, fontSize: 13, marginTop: 3 }}>
+              Gemeinsam stärker bleiben
+            </Text>
+          </View>
+          <View
+            style={{
+              backgroundColor: SURFACE2,
+              borderRadius: 6,
+              paddingHorizontal: 6,
+              paddingVertical: 2,
+            }}
+          >
+            <Text style={{ color: MUTED, fontSize: 10, fontWeight: "600" }}>
+              SOON
+            </Text>
+          </View>
+        </View>
+      </View>
+    </Animated.View>
+  );
+}
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function NewHabitScreen() {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [form, setForm] = useState<FormData>(INITIAL_FORM);
-  const [showTimePicker, setShowTimePicker] = useState(false);
-  const [reminderDate, setReminderDate] = useState(new Date());
-  const { mutate: send, isPending } = useDispatch();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { mutate: send } = useDispatch();
 
-  const progress = (currentStep / STEPS.length) * 100;
-  const step = STEPS[currentStep - 1];
+  // Form state
+  const [step, setStep] = useState(1);
+  const [name, setName] = useState("");
+  const [selectedColor, setSelectedColor] = useState<string | null>(null);
 
-  // Identity statement is required on step 2
-  const canProceed = currentStep !== 2 || form.identityStatement.trim() !== "";
+  // Step 2
+  const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+  const [customIdentity, setCustomIdentity] = useState("");
+  const [showCustomIdentity, setShowCustomIdentity] = useState(false);
 
-  const update = (key: keyof FormData, value: string | boolean) =>
-    setForm((prev) => ({ ...prev, [key]: value }));
+  // Step 3
+  const [selectedAnchor, setSelectedAnchor] = useState<string | null>(null);
+  const [customAnchor, setCustomAnchor] = useState("");
+  const [showCustomAnchor, setShowCustomAnchor] = useState(false);
+  const [startSize, setStartSize] = useState<StartSize>("5min");
 
-  const handleCreate = () => {
+  // Step 4
+  const [neverMissTwice, setNeverMissTwice] = useState(true);
+
+  // Launch state
+  const [launched, setLaunched] = useState(false);
+  const [dispatchError, setDispatchError] = useState<string | null>(null);
+
+  // Derived values
+  const accentColor = selectedColor ?? HABIT_COLORS[0];
+  const identityText = showCustomIdentity
+    ? customIdentity.trim()
+    : (selectedPreset ?? "");
+  const anchorText = showCustomAnchor
+    ? customAnchor.trim()
+    : (selectedAnchor ?? "");
+
+  // ── Validation ──────────────────────────────────────────────────────────────
+  function canProceed(): boolean {
+    if (step === 1) return name.trim().length > 0 && selectedColor !== null;
+    if (step === 2) {
+      if (showCustomIdentity) return customIdentity.trim().length > 0;
+      return selectedPreset !== null;
+    }
+    if (step === 3) {
+      if (showCustomAnchor) return customAnchor.trim().length > 0;
+      return selectedAnchor !== null;
+    }
+    return true; // step 4
+  }
+
+  const isValid = canProceed();
+
+  // ── Navigation ──────────────────────────────────────────────────────────────
+  function handleBack() {
+    if (step === 1) {
+      router.back();
+    } else {
+      setStep((s) => s - 1);
+    }
+  }
+
+  function handleNext() {
+    if (!isValid) return;
+    if (step < 4) {
+      setStep((s) => s + 1);
+    } else {
+      handleLaunch();
+    }
+  }
+
+  function handleLaunch() {
+    if (launched) return;
+    setDispatchError(null);
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
     send(
       {
         type: "CREATE_HABIT",
         payload: {
-          name: form.name || form.response || "New Habit",
-          emoji: form.emoji,
-          color: form.color,
-          category: form.category,
-          cue: form.cue,
-          craving: form.craving,
-          response: form.response,
-          reward: form.reward,
-          identityStatement: form.identityStatement || undefined,
-          twoMinuteVersion: form.twoMinuteEnabled ? form.twoMinuteVersion : undefined,
+          name: name.trim(),
+          color: accentColor,
+          identityStatement: identityText || undefined,
+          cue: anchorText,
+          startSize,
+          neverMissTwice,
           frequency: "daily",
-          reminderTime: form.reminderTime || undefined,
           isActive: true,
+          // Required by Habit type but not collected in this wizard:
+          craving: "",
+          response: "",
+          reward: "",
+          category: "other",
         },
       },
       {
         onSuccess: (result) => {
-          if (result.ok) router.back();
+          if (result.ok) {
+            setLaunched(true);
+            setTimeout(() => {
+              router.replace("/");
+            }, 600);
+          } else {
+            setDispatchError(result.error ?? "Unbekannter Fehler");
+          }
         },
       }
     );
-  };
+  }
 
+  // ── CTA label ───────────────────────────────────────────────────────────────
+  const ctaLabel = launched ? "Gestartet ✓" : step < 4 ? "Weiter →" : "Habit starten →";
+
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: COLORS.background }}
+      style={{ flex: 1, backgroundColor: BG }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View style={{ paddingTop: insets.top + 8, paddingHorizontal: 24 }}>
-        {/* Header */}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 24 }}>
-          <Pressable onPress={() => router.back()}>
-            <ChevronLeft color={COLORS.muted} size={24} />
+      {/* Frosted header (fallback: solid dark) */}
+      <View
+        style={{
+          backgroundColor: "rgba(10,10,15,0.72)",
+          paddingTop: insets.top + 8,
+          paddingHorizontal: 20,
+          paddingBottom: 16,
+          gap: 14,
+        }}
+      >
+        {/* Row: back/close + step indicator */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+          <Pressable onPress={handleBack} hitSlop={12}>
+            {step === 1 ? (
+              <X color={accentColor} size={22} />
+            ) : (
+              <ChevronLeft color={accentColor} size={24} />
+            )}
           </Pressable>
-          <Text style={{ fontFamily: FONTS.display, fontSize: 20, color: COLORS.text }}>
-            New Habit
-          </Text>
+          <StepIndicator currentStep={step} accentColor={accentColor} />
         </View>
 
-        {/* Progress Bar */}
-        <View
-          style={{
-            height: 4,
-            backgroundColor: COLORS.border,
-            borderRadius: 2,
-            marginBottom: 8,
-          }}
-        >
-          <View
-            style={{
-              height: 4,
-              width: `${progress}%`,
-              backgroundColor: COLORS.accent,
-              borderRadius: 2,
-            }}
-          />
-        </View>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 24 }}>
-          {STEPS.map((s) => (
-            <Text
-              key={s.id}
-              style={{
-                fontSize: 11,
-                color: s.id <= currentStep ? COLORS.accent : COLORS.muted,
-                fontFamily: FONTS.medium,
-              }}
-            >
-              {s.title}
-            </Text>
-          ))}
+        {/* Step label */}
+        <View>
+          <Text style={{ color: MUTED, fontSize: 12, fontWeight: "600", letterSpacing: 0.8 }}>
+            SCHRITT {step} VON 4
+          </Text>
         </View>
       </View>
 
+      {/* Scrollable content */}
       <ScrollView
-        contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 32 }}
+        contentContainerStyle={{
+          paddingHorizontal: 20,
+          paddingTop: 24,
+          paddingBottom: 40,
+          gap: 0,
+        }}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        {/* Step Card */}
-        <View
-          style={{
-            backgroundColor: COLORS.card,
-            borderColor: COLORS.border,
-            borderWidth: 1,
-            borderRadius: 16,
-            padding: 20,
-            marginBottom: 20,
-          }}
-        >
-          <Text style={{ fontSize: 11, color: COLORS.accent, fontFamily: FONTS.medium, marginBottom: 4 }}>
-            {step.law}
-          </Text>
-          <Text style={{ fontFamily: FONTS.display, fontSize: 26, color: COLORS.text, marginBottom: 2 }}>
-            {step.title}
-          </Text>
-          <Text style={{ color: COLORS.muted, fontSize: 13, marginBottom: 20 }}>
-            {step.subtitle}
-          </Text>
+        {step === 1 && (
+          <Step1
+            name={name}
+            setName={setName}
+            selectedColor={selectedColor}
+            setSelectedColor={setSelectedColor}
+          />
+        )}
 
-          {/* Step 1: Cue */}
-          {currentStep === 1 && (
-            <View style={{ gap: 16 }}>
-              <View style={{ gap: 6 }}>
-                <Text style={{ color: COLORS.text, fontFamily: FONTS.medium, fontSize: 13 }}>
-                  Habit name
-                </Text>
-                <StyledInput
-                  value={form.name}
-                  onChangeText={(t) => update("name", t)}
-                  placeholder="e.g., Morning meditation"
-                />
-              </View>
-              <View style={{ gap: 6 }}>
-                <Text style={{ color: COLORS.text, fontFamily: FONTS.medium, fontSize: 13 }}>
-                  Emoji
-                </Text>
-                <StyledInput
-                  value={form.emoji}
-                  onChangeText={(t) => update("emoji", t)}
-                  placeholder="✨"
-                />
-              </View>
-              <View style={{ gap: 6 }}>
-                <Text style={{ color: COLORS.text, fontFamily: FONTS.medium, fontSize: 13 }}>
-                  Color
-                </Text>
-                <ColorPicker
-                  value={form.color}
-                  onChange={(hex) => update("color", hex)}
-                />
-              </View>
-              <View style={{ gap: 8 }}>
-                <Text style={{ color: COLORS.text, fontFamily: FONTS.medium, fontSize: 13 }}>
-                  Category
-                </Text>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                  {CATEGORIES.map((cat) => (
-                    <Pressable
-                      key={cat.value}
-                      onPress={() => update("category", cat.value)}
-                      style={{
-                        paddingHorizontal: 12,
-                        paddingVertical: 6,
-                        borderRadius: 20,
-                        borderWidth: 1,
-                        borderColor:
-                          form.category === cat.value ? COLORS.accent : COLORS.border,
-                        backgroundColor:
-                          form.category === cat.value ? `${COLORS.accent}20` : "transparent",
-                      }}
-                    >
-                      <Text style={{ color: COLORS.text, fontSize: 13 }}>
-                        {cat.emoji} {cat.label}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-              <View style={{ gap: 6 }}>
-                <Text style={{ color: COLORS.text, fontFamily: FONTS.medium, fontSize: 13 }}>
-                  What triggers this habit?
-                </Text>
-                <StyledInput
-                  value={form.cue}
-                  onChangeText={(t) => update("cue", t)}
-                  placeholder="e.g., After I pour my morning coffee..."
-                />
-              </View>
-              <View style={{ gap: 6 }}>
-                <Text style={{ color: COLORS.text, fontFamily: FONTS.medium, fontSize: 13 }}>
-                  When and where?
-                </Text>
-                <StyledInput
-                  value={form.when}
-                  onChangeText={(t) => update("when", t)}
-                  placeholder="e.g., 7:00 AM in the kitchen"
-                />
-              </View>
-              <View style={{ gap: 6 }}>
-                <Text style={{ color: COLORS.text, fontFamily: FONTS.medium, fontSize: 13 }}>
-                  Erinnerung{" "}
-                  <Text style={{ color: COLORS.muted, fontStyle: "italic" }}>(optional)</Text>
-                </Text>
-                {Platform.OS === "web" ? (
-                  <StyledInput
-                    value={form.reminderTime}
-                    onChangeText={(t) => update("reminderTime", t)}
-                    placeholder="HH:MM"
-                  />
-                ) : (
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    <Pressable
-                      onPress={() => setShowTimePicker(true)}
-                      style={{
-                        flex: 1,
-                        backgroundColor: COLORS.background,
-                        borderColor: COLORS.border,
-                        borderWidth: 1,
-                        borderRadius: 10,
-                        paddingHorizontal: 14,
-                        paddingVertical: 12,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: form.reminderTime ? COLORS.text : COLORS.muted,
-                          fontFamily: FONTS.body,
-                          fontSize: 15,
-                        }}
-                      >
-                        {form.reminderTime || "Keine Erinnerung"}
-                      </Text>
-                    </Pressable>
-                    {form.reminderTime ? (
-                      <Pressable onPress={() => update("reminderTime", "")}>
-                        <X color={COLORS.muted} size={20} />
-                      </Pressable>
-                    ) : null}
-                  </View>
-                )}
-                {showTimePicker && DateTimePicker ? (
-                  <DateTimePicker
-                    value={reminderDate}
-                    mode="time"
-                    is24Hour
-                    onChange={(_: unknown, date?: Date) => {
-                      setShowTimePicker(false);
-                      if (date) {
-                        setReminderDate(date);
-                        const h = date.getHours().toString().padStart(2, "0");
-                        const m = date.getMinutes().toString().padStart(2, "0");
-                        update("reminderTime", `${h}:${m}`);
-                      }
-                    }}
-                  />
-                ) : null}
-              </View>
-            </View>
-          )}
+        {step === 2 && (
+          <Step2
+            selectedPreset={selectedPreset}
+            setSelectedPreset={setSelectedPreset}
+            customIdentity={customIdentity}
+            setCustomIdentity={setCustomIdentity}
+            showCustom={showCustomIdentity}
+            setShowCustom={setShowCustomIdentity}
+            accentColor={accentColor}
+          />
+        )}
 
-          {/* Step 2: Craving */}
-          {currentStep === 2 && (
-            <View style={{ gap: 16 }}>
-              <View style={{ gap: 6 }}>
-                <Text style={{ color: COLORS.text, fontFamily: FONTS.medium, fontSize: 13 }}>
-                  I am someone who...{" "}
-                  <Text style={{ color: COLORS.accent, fontStyle: "italic" }}>(Pflichtfeld)</Text>
-                </Text>
-                <StyledInput
-                  value={form.identityStatement}
-                  onChangeText={(t) => update("identityStatement", t)}
-                  placeholder="e.g., moves their body every day"
-                />
-              </View>
-              <View style={{ gap: 6 }}>
-                <Text style={{ color: COLORS.text, fontFamily: FONTS.medium, fontSize: 13 }}>
-                  What makes this appealing?
-                </Text>
-                <StyledInput
-                  value={form.craving}
-                  onChangeText={(t) => update("craving", t)}
-                  placeholder="e.g., I'll feel calm and focused"
-                  multiline
-                />
-              </View>
-            </View>
-          )}
+        {step === 3 && (
+          <Step3
+            habitName={name}
+            selectedAnchor={selectedAnchor}
+            setSelectedAnchor={setSelectedAnchor}
+            customAnchor={customAnchor}
+            setCustomAnchor={setCustomAnchor}
+            showCustomAnchor={showCustomAnchor}
+            setShowCustomAnchor={setShowCustomAnchor}
+            startSize={startSize}
+            setStartSize={setStartSize}
+            accentColor={accentColor}
+          />
+        )}
 
-          {/* Step 3: Response */}
-          {currentStep === 3 && (
-            <View style={{ gap: 16 }}>
-              <View style={{ gap: 6 }}>
-                <Text style={{ color: COLORS.text, fontFamily: FONTS.medium, fontSize: 13 }}>
-                  What's the habit?
-                </Text>
-                <StyledInput
-                  value={form.response}
-                  onChangeText={(t) => update("response", t)}
-                  placeholder="e.g., Meditate for 10 minutes"
-                />
-              </View>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  backgroundColor: COLORS.background,
-                  borderColor: COLORS.border,
-                  borderWidth: 1,
-                  borderRadius: 10,
-                  padding: 14,
-                }}
-              >
-                <View>
-                  <Text style={{ color: COLORS.text, fontFamily: FONTS.medium, fontSize: 14 }}>
-                    2-Minute Version
-                  </Text>
-                  <Text style={{ color: COLORS.muted, fontSize: 11, marginTop: 2 }}>
-                    Start smaller if needed
-                  </Text>
-                </View>
-                <Switch
-                  value={form.twoMinuteEnabled}
-                  onValueChange={(v) => update("twoMinuteEnabled", v)}
-                  trackColor={{ true: COLORS.accent, false: COLORS.border }}
-                  thumbColor={COLORS.text}
-                />
-              </View>
-              {form.twoMinuteEnabled && (
-                <View style={{ gap: 6 }}>
-                  <Text style={{ color: COLORS.text, fontFamily: FONTS.medium, fontSize: 13 }}>
-                    2-Minute version
-                  </Text>
-                  <StyledInput
-                    value={form.twoMinuteVersion}
-                    onChangeText={(t) => update("twoMinuteVersion", t)}
-                    placeholder="e.g., Sit and breathe for 2 minutes"
-                  />
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* Step 4: Reward */}
-          {currentStep === 4 && (
-            <View style={{ gap: 16 }}>
-              <View style={{ gap: 6 }}>
-                <Text style={{ color: COLORS.text, fontFamily: FONTS.medium, fontSize: 13 }}>
-                  How will you celebrate?
-                </Text>
-                <StyledInput
-                  value={form.reward}
-                  onChangeText={(t) => update("reward", t)}
-                  placeholder="e.g., Check it off and smile"
-                  multiline
-                />
-              </View>
-            </View>
-          )}
-        </View>
-
-        {/* Navigation Buttons */}
-        <View style={{ flexDirection: "row", gap: 12 }}>
-          {currentStep > 1 && (
-            <Pressable
-              onPress={() => setCurrentStep((s) => s - 1)}
-              style={{
-                flex: 1,
-                height: 50,
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: COLORS.border,
-                backgroundColor: COLORS.card,
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 6,
-              }}
-            >
-              <ChevronLeft color={COLORS.text} size={18} />
-              <Text style={{ color: COLORS.text, fontFamily: FONTS.medium }}>Back</Text>
-            </Pressable>
-          )}
-          <Pressable
-            onPress={() => {
-              if (!canProceed || isPending) return;
-              if (currentStep < STEPS.length) {
-                setCurrentStep((s) => s + 1);
-              } else {
-                handleCreate();
-              }
-            }}
-            style={{
-              flex: 1,
-              height: 50,
-              borderRadius: 12,
-              backgroundColor: COLORS.accent,
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 6,
-              opacity: canProceed && !isPending ? 1 : 0.4,
-              shadowColor: COLORS.accent,
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: canProceed ? 0.4 : 0,
-              shadowRadius: 10,
-              elevation: canProceed ? 6 : 0,
-            }}
-          >
-            {isPending ? (
-              <ActivityIndicator color="white" size="small" />
-            ) : (
-              <>
-                <Text style={{ color: "white", fontFamily: FONTS.medium }}>
-                  {currentStep === STEPS.length ? "Create Habit" : "Next"}
-                </Text>
-                {currentStep < STEPS.length ? (
-                  <ChevronRight color="white" size={18} />
-                ) : (
-                  <Check color="white" size={18} />
-                )}
-              </>
-            )}
-          </Pressable>
-        </View>
+        {step === 4 && (
+          <Step4
+            habitName={name}
+            selectedColor={accentColor}
+            identityText={identityText}
+            anchorText={anchorText}
+            startSize={startSize}
+            neverMissTwice={neverMissTwice}
+            setNeverMissTwice={setNeverMissTwice}
+            accentColor={accentColor}
+          />
+        )}
       </ScrollView>
+
+      {/* Footer CTA */}
+      <View
+        style={{
+          paddingHorizontal: 20,
+          paddingBottom: insets.bottom + 16,
+          paddingTop: 12,
+          backgroundColor: BG,
+          gap: 8,
+        }}
+      >
+        {dispatchError && (
+          <Text style={{ color: "#FF6B6B", fontSize: 13, textAlign: "center" }}>
+            {dispatchError}
+          </Text>
+        )}
+        <CtaButton
+          label={ctaLabel}
+          onPress={handleNext}
+          disabled={!isValid || launched}
+          accentColor={accentColor}
+        />
+      </View>
     </KeyboardAvoidingView>
   );
 }
