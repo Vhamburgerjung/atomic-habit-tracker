@@ -11,6 +11,7 @@ import { useHabitToggle, type CheckedToastInfo } from "../hooks/useHabitToggle";
 import { COLORS, FONTS } from "../theme";
 import { computeActiveWeekSet, heatmapCellOpacity } from "../utils/heatmap";
 import { CheckButton } from "./CheckButton";
+import { HabitEmblem } from "./HabitEmblem";
 
 interface HabitCardProps {
   id: string;
@@ -163,7 +164,7 @@ export function HabitCard({
               justifyContent: "center",
             }}
           >
-            <Text style={{ fontSize: 20 }}>{emoji}</Text>
+            <HabitEmblem emoji={emoji} color={renderColor} size={20} />
           </View>
 
           {/* Name */}

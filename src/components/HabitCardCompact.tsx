@@ -11,6 +11,7 @@ import Animated, {
 import { COLORS, FONTS } from "../theme";
 import { useHabitToggle, type CheckedToastInfo } from "../hooks/useHabitToggle";
 import { computeActiveWeekSet, heatmapCellOpacity } from "../utils/heatmap";
+import { HabitEmblem } from "./HabitEmblem";
 
 interface HabitCardCompactProps {
   id: string;
@@ -174,7 +175,7 @@ export function HabitCardCompact({
               justifyContent: "center",
             }}
           >
-            <Text style={{ fontSize: 14 }}>{emoji}</Text>
+            <HabitEmblem emoji={emoji} color={renderColor} size={14} />
           </View>
           <View style={{ flex: 1 }}>
             <Text

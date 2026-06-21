@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { Pressable, Text, View } from "react-native";
 import { COLORS, FONTS } from "../theme";
 import { useHabitToggle, type CheckedToastInfo } from "../hooks/useHabitToggle";
+import { HabitEmblem } from "./HabitEmblem";
 import {
   SQUARE_SIZE,
   SQUARE_GAP,
@@ -80,7 +81,7 @@ export function HabitWeekRow({
             justifyContent: "center",
           }}
         >
-          <Text style={{ fontSize: 14 }}>{emoji}</Text>
+          <HabitEmblem emoji={emoji} color={renderColor} size={14} />
         </View>
         <Text
           numberOfLines={1}
