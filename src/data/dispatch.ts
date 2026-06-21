@@ -2,8 +2,13 @@ import { supabase } from '../lib/supabase';
 import type { HabitCommand, CommandResult } from './types';
 
 export async function dispatch(command: HabitCommand): Promise<CommandResult> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: 'Not authenticated' };
+  let { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    const { data, error } = await supabase.auth.signInAnonymously();
+    if (error || !data.session) return { ok: false, error: error?.message ?? 'Not authenticated' };
+    session = data.session;
+  }
+  const user = session.user;
 
   switch (command.type) {
 
