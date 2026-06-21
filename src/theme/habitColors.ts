@@ -1,32 +1,26 @@
 export const HABIT_COLORS: string[] = [
-  // Required mockup colors
-  '#7C3AED', // Violet (accent)
-  '#EE9800', // Amber
-  '#10B981', // Emerald
-  '#3B82F6', // Blue
-  // Warm
+  '#FF6B6B', // Coral
+  '#4ECDC4', // Ocean
+  '#A78BFA', // Violet
+  '#FBBF24', // Amber
+  '#34D399', // Emerald
+  '#38BDF8', // Sky
+  '#FB7185', // Rose
+  '#818CF8', // Indigo
+  '#A3E635', // Lime
+  '#FB923C', // Orange
+  '#22D3EE', // Cyan
+  '#F472B6', // Pink
   '#EF4444', // Red
-  '#F97316', // Orange
-  '#F59E0B', // Yellow-amber
-  '#EC4899', // Pink
-  '#BE185D', // Deep rose
-  '#DC2626', // Crimson
-  // Cool
-  '#06B6D4', // Cyan
   '#14B8A6', // Teal
-  '#6366F1', // Indigo
-  '#8B5CF6', // Purple
-  '#A855F7', // Fuchsia-purple
-  '#2563EB', // Deep blue
-  '#0EA5E9', // Sky
-  // Saturated / vivid
-  '#84CC16', // Lime
-  '#22C55E', // Green
-  '#F43F5E', // Rose
-  // Muted / earthy
-  '#6B7280', // Cool gray
-  '#78716C', // Warm stone
-  '#92400E', // Brown
-  '#065F46', // Dark green
-  '#1E3A5F', // Navy
+  '#C084FC', // Purple
+  '#FACC15', // Yellow
+  '#4ADE80', // Green
+  '#60A5FA', // Blue
+  '#E879F9', // Fuchsia
+  '#7C83FD', // Peri
+  '#6EE7B7', // Mint
+  '#F97316', // Tangerine
+  '#2DD4BF', // Aqua
+  '#DB2777', // Magenta
 ];
