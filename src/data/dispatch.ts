@@ -17,9 +17,9 @@ export async function dispatch(command: HabitCommand): Promise<CommandResult> {
           emoji:                p.emoji ?? null,
           color:                p.color ?? null,
           cue:                  p.cue,
-          craving:              p.craving,
-          response:             p.response,
-          reward:               p.reward,
+          craving:              p.craving ?? null,
+          response:             p.response ?? null,
+          reward:               p.reward ?? null,
           identity_statement:   p.identityStatement ?? null,
           two_minute_version:   p.twoMinuteVersion ?? null,
           start_size:           p.startSize ?? null,
@@ -27,7 +27,7 @@ export async function dispatch(command: HabitCommand): Promise<CommandResult> {
           frequency:            p.frequency,
           target_days_per_week: p.targetDaysPerWeek ?? null,
           reminder_time:        p.reminderTime ?? null,
-          category:             p.category,
+          category:             p.category ?? null,
           is_active:            p.isActive,
         })
         .select('id')

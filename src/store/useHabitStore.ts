@@ -5,9 +5,9 @@ export type Habit = {
   emoji?: string;
   color?: string;
   cue: string;
-  craving: string;
-  response: string;
-  reward: string;
+  craving?: string;
+  response?: string;
+  reward?: string;
   identityStatement?: string;
   twoMinuteVersion?: string;
   startSize?: '2min' | '5min' | '15min' | '30min';
@@ -16,7 +16,7 @@ export type Habit = {
   targetDaysPerWeek?: number;
   reminderTime?: string;
   notificationId?: string;
-  category: "health" | "learning" | "mindfulness" | "social" | "other";
+  category?: "health" | "learning" | "mindfulness" | "social" | "other";
   createdAt: string;
   isActive: boolean;
 };

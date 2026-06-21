@@ -114,7 +114,7 @@ export function evaluateBadges(checkoffs: CheckOff[], habits: Habit[]): Badge[] 
   );
 
   const hasWizardHabit = habits.some(
-    (h) => h.cue.trim() && h.craving.trim() && h.response.trim() && h.reward.trim()
+    (h) => h.cue.trim() && h.craving?.trim() && h.response?.trim() && h.reward?.trim()
   );
 
   const anyHabitFrozen = habits.some((h) => isStreakFrozen(h.id, checkoffs));

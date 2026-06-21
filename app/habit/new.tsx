@@ -779,7 +779,7 @@ function Step4({
 export default function NewHabitScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { mutate: send } = useDispatch();
+  const { mutate: send, isPending } = useDispatch();
 
   // Form state
   const [step, setStep] = useState(1);
@@ -848,7 +848,7 @@ export default function NewHabitScreen() {
   }
 
   function handleLaunch() {
-    if (launched) return;
+    if (launched || isPending) return;
     setDispatchError(null);
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -865,11 +865,6 @@ export default function NewHabitScreen() {
           neverMissTwice,
           frequency: "daily",
           isActive: true,
-          // Required by Habit type but not collected in this wizard:
-          craving: "",
-          response: "",
-          reward: "",
-          category: "other",
         },
       },
       {
@@ -1005,7 +1000,7 @@ export default function NewHabitScreen() {
         <CtaButton
           label={ctaLabel}
           onPress={handleNext}
-          disabled={!isValid || launched}
+          disabled={!isValid || launched || isPending}
           accentColor={accentColor}
         />
       </View>

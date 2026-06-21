@@ -56,7 +56,7 @@ type FormData = {
   name: string;
   emoji: string;
   color: string;
-  category: Habit["category"];
+  category: NonNullable<Habit["category"]>;
   cue: string;
   when: string;
   reminderTime: string;
@@ -84,7 +84,7 @@ const INITIAL_FORM: FormData = {
   reward: "",
 };
 
-const CATEGORIES: { value: Habit["category"]; label: string; emoji: string }[] = [
+const CATEGORIES: { value: NonNullable<Habit["category"]>; label: string; emoji: string }[] = [
   { value: "health", label: "Health", emoji: "💪" },
   { value: "learning", label: "Learning", emoji: "📚" },
   { value: "mindfulness", label: "Mind", emoji: "🧘" },
