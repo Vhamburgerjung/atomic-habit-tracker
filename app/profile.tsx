@@ -2,11 +2,11 @@ import { View, Text, ScrollView, ActivityIndicator, Pressable } from "react-nati
 import { useEffect, useState } from "react";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { COLORS, FONTS, SPACING, RADIUS } from "../../src/theme";
-import { useUserXP } from "../../src/data/queries/useUserXP";
-import { useUserBadges } from "../../src/data/queries/useUserBadges";
-import { supabase } from "../../src/lib/supabase";
-import type { Badge } from "../../src/utils/badges";
+import { COLORS, FONTS, SPACING, RADIUS } from "../src/theme";
+import { useUserXP } from "../src/data/queries/useUserXP";
+import { useUserBadges } from "../src/data/queries/useUserBadges";
+import { supabase } from "../src/lib/supabase";
+import type { Badge } from "../src/utils/badges";
 
 function XPBar({ progress }: { progress: number }) {
   return (

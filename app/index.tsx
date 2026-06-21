@@ -2,19 +2,18 @@ import { useState } from "react";
 import { View, Text, ScrollView, Pressable, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { Plus } from "lucide-react-native";
-import { useTodayDashboard, useHabitRealtime } from "../../src/data";
-import { HabitCard } from "../../src/components/HabitCard";
-import { HabitCardCompact } from "../../src/components/HabitCardCompact";
-import { EmptyState } from "../../src/components/EmptyState";
-import { XPToast } from "../../src/components/XPToast";
-import { ViewModeSwitcher } from "../../src/components/ViewModeSwitcher";
-import { WeekdayHeader, WEEKDAY_HEADER_HEIGHT } from "../../src/components/WeekdayHeader";
-import { HabitWeekRow } from "../../src/components/HabitWeekRow";
-import { COLORS, FONTS } from "../../src/theme";
-import { useViewMode } from "../../src/hooks/useViewMode";
+import { Plus, User } from "lucide-react-native";
+import { useTodayDashboard, useHabitRealtime } from "../src/data";
+import { HabitCard } from "../src/components/HabitCard";
+import { HabitCardCompact } from "../src/components/HabitCardCompact";
+import { EmptyState } from "../src/components/EmptyState";
+import { XPToast } from "../src/components/XPToast";
+import { ViewModeSwitcher } from "../src/components/ViewModeSwitcher";
+import { WeekdayHeader, WEEKDAY_HEADER_HEIGHT } from "../src/components/WeekdayHeader";
+import { HabitWeekRow } from "../src/components/HabitWeekRow";
+import { COLORS, FONTS } from "../src/theme";
+import { useViewMode } from "../src/hooks/useViewMode";
 
-const TAB_BAR_HEIGHT = 64;
 const TOP_BAR_HEIGHT = 52;
 
 export default function TodayScreen() {
@@ -55,9 +54,9 @@ export default function TodayScreen() {
             paddingHorizontal: 24,
           }}
         >
-          <Text style={{ fontFamily: FONTS.display, fontSize: 21, color: COLORS.text }}>
-            ⚡ Atomic
-          </Text>
+          <Pressable onPress={() => router.push("/profile")} hitSlop={8}>
+            <User color={COLORS.text} size={24} />
+          </Pressable>
           <Pressable onPress={() => router.push("/habit/new")} hitSlop={8}>
             <Plus color={COLORS.text} size={24} />
           </Pressable>
@@ -149,7 +148,7 @@ export default function TodayScreen() {
           position: "absolute",
           left: 0,
           right: 0,
-          bottom: insets.bottom + TAB_BAR_HEIGHT + 12,
+          bottom: insets.bottom + 16,
           alignItems: "center",
         }}
       >

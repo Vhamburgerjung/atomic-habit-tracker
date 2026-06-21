@@ -88,7 +88,8 @@ export default function RootLayout() {
           <StatusBar style="light" />
           <Stack>
             <Stack.Screen name="onboarding" options={{ headerShown: false, animation: "fade" }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen name="profile" options={{ headerShown: false }} />
             <Stack.Screen name="auth" options={{ headerShown: false }} />
             <Stack.Screen
               name="habit/new"
