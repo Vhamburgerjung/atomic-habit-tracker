@@ -22,13 +22,13 @@ const queryClient = new QueryClient({
 });
 
 function AuthGuard({ session }: { session: Session | null | undefined }) {
-  const [signingIn, setSigningIn] = useState(false);
+  const [attempted, setAttempted] = useState(false);
 
   useEffect(() => {
-    if (session !== null || signingIn) return;
-    setSigningIn(true);
-    supabase.auth.signInAnonymously().finally(() => setSigningIn(false));
-  }, [session, signingIn]);
+    if (session !== null || attempted) return;
+    setAttempted(true);
+    supabase.auth.signInAnonymously();
+  }, [session, attempted]);
 
   return null;
 }
