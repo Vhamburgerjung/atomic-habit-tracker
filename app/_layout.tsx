@@ -1,7 +1,7 @@
 import "react-native-url-polyfill/auto";
 import "../global.css";
 import { useEffect, useState } from "react";
-import { Stack, useRouter, useSegments } from "expo-router";
+import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -10,10 +10,8 @@ import { JetBrainsMono_400Regular } from "@expo-google-fonts/jetbrains-mono";
 import * as SplashScreen from "expo-splash-screen";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Session } from "@supabase/supabase-js";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../src/lib/supabase";
 import { requestPermissions } from "../src/utils/notifications";
-import { ONBOARDING_KEY } from "./onboarding";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -24,30 +22,13 @@ const queryClient = new QueryClient({
 });
 
 function AuthGuard({ session }: { session: Session | null | undefined }) {
-  const segments = useSegments();
-  const router = useRouter();
-  const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
   const [signingIn, setSigningIn] = useState(false);
-
-  useEffect(() => {
-    AsyncStorage.getItem(ONBOARDING_KEY).then((v) => setOnboardingDone(v === "true"));
-  }, []);
 
   useEffect(() => {
     if (session !== null || signingIn) return;
     setSigningIn(true);
     supabase.auth.signInAnonymously().finally(() => setSigningIn(false));
   }, [session, signingIn]);
-
-  useEffect(() => {
-    if (!session || onboardingDone === null) return;
-    const inAuthRoute = segments[0] === "auth";
-    const inOnboarding = segments[0] === "onboarding";
-
-    if (inAuthRoute) return;
-    if (!onboardingDone && !inOnboarding) { router.replace("/onboarding"); return; }
-    if (onboardingDone && inOnboarding) { router.replace("/"); return; }
-  }, [session, segments, onboardingDone]);
 
   return null;
 }

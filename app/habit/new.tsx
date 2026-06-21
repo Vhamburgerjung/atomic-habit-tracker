@@ -832,7 +832,8 @@ export default function NewHabitScreen() {
   // ── Navigation ──────────────────────────────────────────────────────────────
   function handleBack() {
     if (step === 1) {
-      router.back();
+      if (router.canGoBack()) router.back();
+      else router.replace("/");
     } else {
       setStep((s) => s - 1);
     }
