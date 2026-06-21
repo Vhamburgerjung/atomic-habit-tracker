@@ -64,7 +64,7 @@ export function useHabitToggle(opts: UseHabitToggleOptions = {}): UseHabitToggle
     if (!wasCompleted && date === todayStr) {
       opts.onChecked?.({
         xp: xpForCheckOff(habit.currentStreak + 1),
-        reward: habit.reward,
+        reward: habit.reward ?? "",
       });
     }
   };

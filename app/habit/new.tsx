@@ -533,7 +533,7 @@ function Step3({
       {/* Habit-stack preview */}
       {showPreview && (
         <Animated.View
-          key={`${anchorText}-${habitName}`}
+          key={`stack-${showPreview}`}
           entering={ZoomIn.duration(280)}
           style={{
             backgroundColor: CARD,
@@ -547,7 +547,7 @@ function Step3({
         >
           {tokens.map((token, i) => (
             <Animated.Text
-              key={`${token.text}-${i}`}
+              key={`${i}`}
               entering={FadeInDown.delay(i * 60).duration(260)}
               style={{
                 color: token.colored ? accentColor : "#E5E5EA",

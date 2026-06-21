@@ -21,12 +21,15 @@ export async function requestPermissions(): Promise<boolean> {
 export async function scheduleHabitReminder(habit: Habit): Promise<string> {
   if (Platform.OS === "web" || !habit.reminderTime) return "";
   const [hours, minutes] = habit.reminderTime.split(":").map(Number);
+  const titleEmoji = habit.emoji ? `${habit.emoji} ` : "";
+  const cueText = habit.cue || "Tippe zum Abhaken";
+  const rewardSuffix = habit.reward ? ` · Belohnung: ${habit.reward}` : "";
   const id = await Notifications.scheduleNotificationAsync({
     content: {
-      title: `${habit.emoji} Zeit für ${habit.name}`,
+      title: `${titleEmoji}Zeit für ${habit.name}`,
       body: habit.identityStatement
-        ? `I am someone who ${habit.identityStatement} · ${habit.cue} · Belohnung: ${habit.reward}`
-        : `${habit.cue} · Belohnung: ${habit.reward}`,
+        ? `I am someone who ${habit.identityStatement} · ${cueText}${rewardSuffix}`
+        : `${cueText}${rewardSuffix}`,
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DAILY,

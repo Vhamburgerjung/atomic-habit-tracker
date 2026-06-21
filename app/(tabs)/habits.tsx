@@ -5,7 +5,9 @@ import { Swipeable } from "react-native-gesture-handler";
 import { Trash2, ChevronRight, Plus } from "lucide-react-native";
 import { useHabitList, useDispatch } from "../../src/data";
 import { EmptyState } from "../../src/components/EmptyState";
+import { HabitEmblem } from "../../src/components/HabitEmblem";
 import { COLORS, FONTS } from "../../src/theme";
+import { HABIT_COLORS } from "../../src/theme/habitColors";
 
 export default function HabitsScreen() {
   const { active: activeHabits, isLoading } = useHabitList();
@@ -99,14 +101,18 @@ export default function HabitsScreen() {
                   marginBottom: 12,
                 }}
               >
-                <Text style={{ fontSize: 28 }}>{habit.emoji}</Text>
+                <View style={{ width: 28, height: 28, alignItems: "center", justifyContent: "center" }}>
+                  <HabitEmblem emoji={habit.emoji} color={habit.color || HABIT_COLORS[0]} size={28} />
+                </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontFamily: FONTS.medium, color: COLORS.text, fontSize: 15 }}>
                     {habit.name}
                   </Text>
-                  <Text style={{ color: COLORS.muted, fontSize: 12, marginTop: 2 }}>
-                    {habit.category}
-                  </Text>
+                  {habit.category && habit.category !== "other" && (
+                    <Text style={{ color: COLORS.muted, fontSize: 12, marginTop: 2 }}>
+                      {habit.category}
+                    </Text>
+                  )}
                 </View>
                 <ChevronRight color={COLORS.muted} size={18} />
               </Pressable>

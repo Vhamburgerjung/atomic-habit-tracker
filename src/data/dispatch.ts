@@ -9,27 +9,29 @@ export async function dispatch(command: HabitCommand): Promise<CommandResult> {
 
     case 'CREATE_HABIT': {
       const p = command.payload;
+      const insertRow: Record<string, unknown> = {
+        user_id:   user.id,
+        name:      p.name,
+        emoji:     p.emoji ?? null,
+        color:     p.color ?? null,
+        identity_statement:   p.identityStatement ?? null,
+        two_minute_version:   p.twoMinuteVersion ?? null,
+        start_size:           p.startSize ?? null,
+        never_miss_twice:     p.neverMissTwice ?? null,
+        frequency:            p.frequency,
+        target_days_per_week: p.targetDaysPerWeek ?? null,
+        reminder_time:        p.reminderTime ?? null,
+        is_active:            p.isActive,
+      };
+      // NOT NULL columns: omit if undefined so DB default applies; never send explicit null
+      if (p.cue      !== undefined) insertRow.cue      = p.cue;
+      if (p.craving  !== undefined) insertRow.craving  = p.craving;
+      if (p.response !== undefined) insertRow.response = p.response;
+      if (p.reward   !== undefined) insertRow.reward   = p.reward;
+      if (p.category !== undefined) insertRow.category = p.category;
       const { data, error } = await supabase
         .from('habits')
-        .insert({
-          user_id:              user.id,
-          name:                 p.name,
-          emoji:                p.emoji ?? null,
-          color:                p.color ?? null,
-          cue:                  p.cue,
-          craving:              p.craving ?? null,
-          response:             p.response ?? null,
-          reward:               p.reward ?? null,
-          identity_statement:   p.identityStatement ?? null,
-          two_minute_version:   p.twoMinuteVersion ?? null,
-          start_size:           p.startSize ?? null,
-          never_miss_twice:     p.neverMissTwice ?? null,
-          frequency:            p.frequency,
-          target_days_per_week: p.targetDaysPerWeek ?? null,
-          reminder_time:        p.reminderTime ?? null,
-          category:             p.category ?? null,
-          is_active:            p.isActive,
-        })
+        .insert(insertRow)
         .select('id')
         .single();
       if (error) return { ok: false, error: error.message };

@@ -153,7 +153,7 @@ export default function HabitDetailScreen() {
             </View>
           ) : (
             <Text style={{ fontFamily: FONTS.display, fontSize: 18, color: COLORS.text }}>
-              {habit.emoji} {habit.name}
+              {habit.emoji ? `${habit.emoji} ${habit.name}` : habit.name}
             </Text>
           )}
         </View>
