@@ -6,7 +6,7 @@ export function useHabitRealtime() {
   const qc = useQueryClient();
   useEffect(() => {
     const channel = supabase
-      .channel('habit-realtime')
+      .channel(`habit-realtime-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'habits' }, () => {
         qc.invalidateQueries({ queryKey: ['habits'] });
       })

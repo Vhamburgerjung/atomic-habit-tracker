@@ -460,6 +460,7 @@ function Step3({
               <Pressable
                 key={anchor}
                 onPress={() => {
+                  Haptics.selectionAsync();
                   setSelectedAnchor(anchor);
                   setShowCustomAnchor(false);
                 }}
@@ -547,7 +548,7 @@ function Step3({
         >
           {tokens.map((token, i) => (
             <Animated.Text
-              key={`${i}`}
+              key={`${anchorText}-${i}`}
               entering={FadeInDown.delay(i * 60).duration(260)}
               style={{
                 color: token.colored ? accentColor : "#E5E5EA",
