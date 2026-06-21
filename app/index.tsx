@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Plus, User } from "lucide-react-native";
 import { useTodayDashboard, useHabitRealtime } from "../src/data";
+import { ONBOARDING_V2_KEY } from "./onboarding";
 import { HabitCard } from "../src/components/HabitCard";
 import { HabitCardCompact } from "../src/components/HabitCardCompact";
 import { EmptyState } from "../src/components/EmptyState";
@@ -24,9 +26,34 @@ export default function TodayScreen() {
   const { viewMode, setViewMode } = useViewMode();
 
   const [checkOffToast, setCheckOffToast] = useState<{ xp: number; reward: string } | null>(null);
+  const [gateChecked, setGateChecked] = useState(false);
 
-  if (isLoading) {
-    return <ActivityIndicator color={COLORS.accent} style={{ flex: 1, marginTop: 100 }} />;
+  // First-launch gate: if the user has not completed onboarding, redirect.
+  useEffect(() => {
+    let cancelled = false;
+    AsyncStorage.getItem(ONBOARDING_V2_KEY)
+      .then((v) => {
+        if (cancelled) return;
+        if (v !== "true") {
+          router.replace("/onboarding");
+        } else {
+          setGateChecked(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setGateChecked(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  if (!gateChecked || isLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: "center" }}>
+        <ActivityIndicator color={COLORS.accent} />
+      </View>
+    );
   }
 
   return (

@@ -1,667 +1,1676 @@
-import { useState } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TextInput,
-  Pressable,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  AccessibilityInfo,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
+import Animated, {
+  Easing,
+  cancelAnimation,
+  useAnimatedProps,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withTiming,
+} from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Circle, Defs, Ellipse, Path, RadialGradient, Rect, Stop } from "react-native-svg";
 import { COLORS, FONTS } from "../src/theme";
 
-export const ONBOARDING_KEY = "onboarding_v1";
-export const PROFILE_KEY = "coach_profile_v1";
+export const ONBOARDING_V2_KEY = "atomic.onboarding_v2_completed";
 
-const G = {
-  gold: "#c8a050",
-  goldDim: "rgba(200,160,80,0.10)",
-  goldBorder: "rgba(200,160,80,0.22)",
-  goldBorderStrong: "rgba(200,160,80,0.5)",
-  surface: "rgba(255,255,255,0.04)",
-  surfaceBorder: "rgba(255,255,255,0.07)",
-  detail: "rgba(255,255,255,0.05)",
-  text: "#e8e4dc",
-  muted: "#7a7060",
-  bg: COLORS.background,
-};
+const PALETTE = {
+  bg: "#0A0A0F",
+  card: "#141416",
+  surface: "#0b0c11",
+  textHi: "#fff",
+  textMid: "rgba(255,255,255,0.55)",
+  textLo: "rgba(255,255,255,0.4)",
+  textXLo: "rgba(255,255,255,0.32)",
+  divider: "rgba(255,255,255,0.07)",
+  blue: "#4A90E2",
+  blueLight: "#8FBEF5",
+  blueSoft: "rgba(74,144,226,0.12)",
+  blueSoftBorder: "rgba(74,144,226,0.22)",
+  blueGlow: "rgba(74,144,226,0.6)",
+  violet: "#6C63FF",
+  green: "#34D399",
+  amber: "#FBBF24",
+  red: "#FF6B6B",
+} as const;
 
-type Lang = "de" | "en";
-type Screen = "lang" | "landing" | "slides" | "wizard";
-type Profile = Record<string, string | string[]>;
-type Question =
-  | { key: string; type: "text"; q: string | ((p: Profile) => string); sub: string; placeholder: string }
-  | { key: string; type: "single" | "multi"; q: string; sub: string; options: string[] };
+// ─── REDUCE-MOTION HOOK ───────────────────────────────────────────────────────
 
-type Slide = {
-  icon: string;
-  tag: string;
-  title: string;
-  body: string;
-  detail: string;
-  example: string;
-};
+function useReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    AccessibilityInfo.isReduceMotionEnabled?.()
+      .then((v) => {
+        if (!cancelled) setReduced(!!v);
+      })
+      .catch(() => {});
+    const sub = AccessibilityInfo.addEventListener(
+      "reduceMotionChanged",
+      (v) => setReduced(!!v)
+    );
+    return () => {
+      cancelled = true;
+      sub.remove();
+    };
+  }, []);
+  return reduced;
+}
 
-// ─── SLIDE CONTENT ────────────────────────────────────────────────────────────
+// ─── ATOM LOGO ────────────────────────────────────────────────────────────────
 
-const SLIDES_DE: Slide[] = [
-  {
-    icon: "📈",
-    tag: "Das Gesetz der marginalen Gewinne",
-    title: "Der Zinseszins-Effekt",
-    body: "1% besser pro Tag klingt nach nichts. Nach einem Jahr bist du 37-mal besser. 1% schlechter: du bist auf fast null. Gewohnheiten sind die unsichtbaren Zinsen deines Lebens.",
-    detail: "Das Paradoxe: Im Alltag merkst du kaum einen Unterschied. Ein Workout macht dich nicht fitter. Ein Tag Lesen macht dich nicht klüger. Aber nach drei Jahren ist der Abstand enorm.\n\nErgebnisse sind immer ein Nachhall vergangener Entscheidungen — sie kommen mit Verzögerung. Du erntest heute, was du vor Monaten gesät hast. Das macht Gewohnheiten so mächtig: und so unsichtbar.",
-    example: "Täglich 20 Minuten lesen = 24 Bücher im Jahr. Das entspricht dem Inhalt von 3–4 Universitätskursen — ohne Auswendiglernen.",
-  },
-  {
-    icon: "🧊",
-    tag: "Das Tal der Enttäuschung",
-    title: "Plateau der latenten Potenziale",
-    body: "Du erhitzt Eis von −10°C auf −1°C — nichts passiert sichtbar. Dann 0°C: alles schmilzt. Hat die Wärme vorher nichts bewirkt? Doch — sie hat sich angesammelt. Genau so funktionieren Gewohnheiten.",
-    detail: "Die meisten Menschen geben auf, bevor der Durchbruch kommt — im Tal der Enttäuschung. Du trainierst wochenlang ohne sichtbare Veränderung. Du lernst Spanisch und fühlst keine Verbesserung. Du sparst Geld und siehst keinen Fortschritt.\n\nAber die Arbeit wird nicht verschwendet — sie wird gespeichert. Der Durchbruch kommt nicht mit der Arbeit. Er kommt nach dem Plateau. Das Einzige, was du tun musst: lange genug durchhalten.",
-    example: "Bambus wächst 5 Jahre lang unsichtbar unter der Erde. Dann schießt er in 6 Wochen 25 Meter in die Höhe. Die Wurzeln waren die ganze Zeit da.",
-  },
-  {
-    icon: "⚙️",
-    tag: "Prozess-basiertes Denken",
-    title: "Systeme schlagen Ziele",
-    body: "Gewinner und Verlierer haben oft dieselben Ziele. Was sie unterscheidet: das System dahinter. Ziele zeigen die Richtung — Systeme bringen dich ans Ziel, dauerhaft.",
-    detail: "Das Problem mit reinen Zielen:\n\n1. Ziele sind momentan: Hast du dein Ziel erreicht, was dann? Viele fallen danach zurück.\n\n2. Ziele verschieben Glück: 'Ich bin glücklich, wenn ich X erreiche' — das macht unglücklich bis dahin. Systeme machen den Prozess zur Belohnung.\n\n3. Ziele geben keine Handlungen vor: 'Ich will abnehmen' ist kein Plan. 'Jeden Abend um 19 Uhr koche ich selbst' ist ein System.\n\nFall in love with the process — not the destination.",
-    example: "Statt 'Ich will abnehmen' → System: Sonntags meal prep. Mo+Do nach der Arbeit trainieren. Mittags kein Zucker. Wasser auf dem Schreibtisch. Keine Willenskraft nötig.",
-  },
-  {
-    icon: "🪞",
-    tag: "Identity-Based Habits",
-    title: "Identität kommt zuerst",
-    body: "3 Ebenen der Veränderung: Ergebnisse (was du erreichst), Prozesse (was du tust), Identität (wer du bist). Die meisten starten bei Ebene 1. Die Dauerhaften starten bei Ebene 3.",
-    detail: "Jede Gewohnheit ist ein Stimmzettel für die Person, die du werden willst. Kleine Handlungen sammeln Beweise:\n\n'Ich habe heute trainiert' → 'Ich bin jemand, der trainiert' → 'Ich bin ein Sportler.'\n\nDer Glaube folgt dem Verhalten — nicht umgekehrt. Du musst nicht warten, bis du 'jemand bist'. Du wirst jemand, indem du so handelst.\n\nZwei Personen lehnen Zigaretten ab: Person A sagt 'Nein danke, ich versuche aufzuhören' (Ergebnis-Denken). Person B sagt 'Nein danke, ich bin kein Raucher' (Identität). Wer schafft es langfristig?",
-    example: "Nicht: 'Ich will ein Buch schreiben.' Sondern: 'Ich bin ein Autor — Autoren schreiben täglich.' → 200 Wörter täglich = 73.000 Wörter = ein vollständiges Buch pro Jahr.",
-  },
-  {
-    icon: "🔄",
-    tag: "The Habit Loop",
-    title: "Die 4 Gesetze — Übersicht",
-    body: "Jede Gewohnheit folgt einem Loop: Auslöser → Verlangen → Handlung → Belohnung. Atomic Habits gibt dir 4 Hebel, diesen Loop zu gestalten — und 4 Gegenhebel für schlechte Habits.",
-    detail: "Gute Habits aufbauen:\n→ Mach es offensichtlich (Cue sichtbar machen)\n→ Mach es attraktiv (Verlangen koppeln)\n→ Mach es einfach (Reibung senken)\n→ Mach es befriedigend (sofortige Belohnung)\n\nSchlechte Habits brechen — alle 4 umkehren:\n← Mach es unsichtbar (Cue verstecken)\n← Mach es unattraktiv (Nachteile bewusst machen)\n← Mach es schwierig (Reibung erhöhen)\n← Mach es unbefriedigend (Konsequenzen sichtbar)",
-    example: "Handy-Sucht reduzieren: Handy in Schublade (unsichtbar), Schwarz-Weiß-Modus (unattraktiv), lange PIN (schwierig), Screen-Time-Tracker täglich ansehen (unbefriedigend).",
-  },
-  {
-    icon: "🏠",
-    tag: "Choice Architecture",
-    title: "Umgebungsdesign",
-    body: "Du bist nicht willenschwach — du lebst in einer Umgebung, die gegen dich arbeitet. Werde der Architekt deines Alltags: Reibung für gute Habits senken, für schlechte erhöhen.",
-    detail: "Reibung reduzieren (gute Habits):\n🎸 Gitarre vor dem Sofa → spielst automatisch\n💧 Wasserflasche auf den Schreibtisch → trinkst mehr\n🏋️ Sportkleidung abends hinlegen → trainierst morgens\n📚 Buch aufs Kopfkissen → liest vor dem Schlafen\n\nReibung erhöhen (schlechte Habits):\n📱 TV-Fernbedienung in anderen Raum\n🍪 Snacks im obersten Schrank\n📵 Apps löschen statt nur ausloggen\n\nEin Raum, eine Nutzung: Dein Gehirn assoziiert Räume mit Verhalten. Schlafzimmer = Schlafen. Schreibtisch = Arbeiten.",
-    example: "Harvard-Studie in einer Cafeteria: Wasser wurde sichtbarer aufgestellt — kein Gespräch, kein Poster. Ergebnis: +25% Wasserverkauf, −11% Cola. Nur durch Umgebungsdesign.",
-  },
-  {
-    icon: "⏱",
-    tag: "Gateway Habits",
-    title: "Die 2-Minuten-Regel",
-    body: "Neue Gewohnheiten sollen weniger als 2 Minuten dauern — nicht als Ziel, sondern als Einstieg. 'Täglich joggen' wird zu 'Schuhe anziehen und die Haustür öffnen'. Das klingt lächerlich einfach. Das ist der Punkt.",
-    detail: "Das eigentliche Ziel ist nicht die 2-Minuten-Version. Das Ziel ist das Erscheinen.\n\nWer täglich ins Gym geht, lernt Training. Wer täglich schreibt, lernt Schreiben. Standardisieren vor Optimieren.\n\nDie 2-Minuten-Regel baut Identität auf: 'Ich bin jemand, der/die ___' — bevor das Volumen skaliert. Und: Selbst am schlechtesten Tag schaffst du 2 Minuten. Einmal gestartet hört man selten nach 2 Minuten auf.\n\nSkala jede neue Gewohnheit auf ihre 2-Minuten-Version, bis sie automatisch läuft. Dann steigern.",
-    example: "'Täglich meditieren' → '2 Atemzüge bewusst nehmen'\n'Gesünder essen' → 'Einen Apfel auf den Tisch legen'\n'Mehr lesen' → 'Buch aufschlagen, eine Seite lesen'\n'Gym' → 'Sportkleidung anziehen'",
-  },
-  {
-    icon: "📍",
-    tag: "If-Then Planning",
-    title: "Implementierungsintentionen",
-    body: "Die häufigste Ausrede: 'Ich habe es vergessen.' Die Lösung: Lege im Voraus fest, wann und wo. Formel: Ich werde [VERHALTEN] um [ZEIT] in [ORT] ausführen.",
-    detail: "Peter Gollwitzers NYU-Studie: Personen, die Ort und Zeit festlegten, hatten 2–3× höhere Wahrscheinlichkeit, ihr Ziel zu erreichen.\n\nBritische Sport-Studie:\n• Gruppe 1 (nur Motivation): 35% trainierten\n• Gruppe 2 (Implementierungsintention): 91% trainierten\n\nDer einzige Unterschied: Gruppe 2 schrieb auf 'Ich trainiere am Dienstag um 18 Uhr in der Sporthalle Mitte.'\n\nKombination mit Habit Stacking: 'Nach [BESTEHENDEM HABIT] werde ich [NEUEN HABIT] ausführen.' Doppelte Wirkung.",
-    example: "'Ich werde jeden Montag und Donnerstag nach der Arbeit um 18:00 Uhr im Fitnessstudio trainieren.' → Diese Personen trainieren 2,4× häufiger als jene mit dem Ziel 'mehr Sport machen'.",
-  },
-  {
-    icon: "⛓️",
-    tag: "Neuronal Chaining",
-    title: "Habit Stacking",
-    body: "Das Gehirn liebt Muster. Koppele neue Gewohnheiten an bestehende Automatismen. Formel: 'Nach [AKTUELLER HABIT] werde ich [NEUER HABIT] ausführen.' Jedes Glied stärkt das nächste.",
-    detail: "Einfache Stacks:\n☕ Morgenkaffee → 2 Min. Tagebuch schreiben\n🦷 Zähneputzen → Affirmation sprechen\n💻 Laptop öffnen → To-do-Liste schreiben\n📱 Handy laden → Buch aufs Nachttisch\n\nFortgeschrittene Ketten:\nAufwachen → Glas Wasser → 5 Min. dehnen → Tagebuch → Dusche → Podcast beim Frühstück\n\nJedes Glied löst automatisch das nächste aus. Beim Übergang bricht die Kette? 2-Minuten-Version als Fallback — dann kehre zurück zum Stack.",
-    example: "BJ Fogg (Stanford Behavior Lab): 8 Liegestütze nach jedem Toilettengang. Nach einem Monat: 40–80 Liegestütze täglich — ohne dediziertes Training, ohne Motivation-Aufwand.",
-  },
-  {
-    icon: "🤝",
-    tag: "Temptation Bundling + Social Proof",
-    title: "Attraktivität & soziales Umfeld",
-    body: "Koppele Pflicht mit Genuss. Und: Umgib dich mit Menschen, für die dein gewünschtes Verhalten normal ist. Das Umfeld formt Identität schneller als jede Motivation.",
-    detail: "Versuchungs-Bündelung:\nDu darfst [BELOHNUNG] NUR während [HABIT].\n🎧 Lieblingspodcast nur beim Laufen\n📺 Netflix nur beim Bügeln\n☕ Lieblingskaffee nur beim Lernen\n\nSoziales Umfeld:\nWir imitieren Verhalten von 3 Gruppen:\n1. Nahestehende (Familie, Freunde)\n2. Die Vielen (gesellschaftliche Normen)\n3. Bewunderte (Vorbilder, Idole)\n\nWenn alle in deiner Gruppe täglich trainieren, ist es normal — keine Willenskraft nötig. Join a tribe where your desired behavior is the expected behavior.",
-    example: "Christchurch-Studie: Gym-Freunde hatten → 5× häufigeres Training. Ronan Byrne (Dublin): Koppelte Fahrrad an Netflix-Streaming — trainierte mehr Sport als je zuvor in seinem Leben.",
-  },
-  {
-    icon: "📊",
-    tag: "Never Miss Twice",
-    title: "Habit Tracking & Kontinuität",
-    body: "Jeden Habit visuell zu tracken macht Fortschritt greifbar und erzeugt Motivation durch Kettenwirkung. Perfektion ist nicht das Ziel — Wiederaufnahme ist die Kunst.",
-    detail: "Warum Tracking funktioniert:\n1. Offensichtlich: Du siehst Fortschritt täglich\n2. Attraktiv: Die Kette verlängern motiviert mehr als das abstrakte Ziel\n3. Befriedigend: Ein Häkchen setzen = sofortige Belohnung (Gesetz 4)\n\nTrackingmethoden:\n📅 Kalender-X: Jeden Tag markieren\n📎 Büroklammer-Trick: Klammer von Schachtel A nach B\n🪣 Murmeln-Methode: Für messbare Mengen\n\nNever Miss Twice: Ein verpasster Tag = Unfall. Zwei hintereinander = Start eines neuen (schlechten) Habits. Komme zurück, bevor der zweite Tag vergeht. Kleiner Habit an schlechtem Tag > Kein Habit.",
-    example: "Jerry Seinfeld markierte jeden Tag mit einem X, an dem er Witze schrieb. Sein Rat an junge Komiker: 'Don't break the chain.' Kein Erfolgsgeheimnis — nur Kontinuität.",
-  },
-];
+interface AtomLogoProps {
+  size: number;
+  reduced: boolean;
+  /** Hero variant matches Screen 1 (fast spin); cta variant matches Screen 5 (slower spin, slightly different core glow). */
+  variant?: "hero" | "cta";
+}
 
-const SLIDES_EN: Slide[] = [
-  {
-    icon: "📈",
-    tag: "The Law of Marginal Gains",
-    title: "The Compounding Effect",
-    body: "Getting 1% better every day sounds like nothing. After one year, you're 37 times better. Getting 1% worse: you're near zero. Habits are the compound interest of your life.",
-    detail: "The paradox: In daily life, you barely notice the difference a habit makes. One workout doesn't make you fitter. One day of reading doesn't make you smarter. But after three years, the gap is enormous.\n\nResults are always a lagging measure of habits — you reap today what you planted months ago. That's what makes habits so powerful: and so invisible.",
-    example: "Reading 20 minutes daily = 24 books per year. That's the content of 3–4 university courses — without memorization.",
+// 1:1 spec from Atomic Onboarding.html
+// Hero (Screen 1, 124px): durations 8/12/16s, glow blur 36, core glow 18px+5spread
+// CTA  (Screen 5, 176px): durations 13/18/23s, glow blur 46, core glow 22px+6spread
+const ATOM_SPEC = {
+  hero: {
+    durations: [8000, 12000, 16000] as const,
+    electronPcts: [0.07, 0.06, 0.06] as const,
+    electronShadowPx: [9, 7, 6] as const,
+    electronShadowAlpha: [1, 0.6, 0.4] as const,
+    coreGlowBlur: 18,
+    coreGlowSpread: 5,
+    glowBlurPx: 36,
   },
-  {
-    icon: "🧊",
-    tag: "The Valley of Disappointment",
-    title: "Plateau of Latent Potential",
-    body: "You heat ice from −10°C to −1°C — nothing visibly happens. Then 0°C: everything melts. Did the heat do nothing before? No — it was accumulating. Habits work exactly the same way.",
-    detail: "Most people quit before the breakthrough comes — in the valley of disappointment. You train for weeks with no visible change. You learn Spanish without feeling improvement. You save money without seeing progress.\n\nBut the work isn't wasted — it's stored. The breakthrough doesn't come with the work. It comes after the plateau. The only thing you need to do: persist long enough.",
-    example: "Bamboo grows invisibly underground for 5 years. Then it shoots 25 meters in 6 weeks. The roots were there the whole time.",
+  cta: {
+    durations: [13000, 18000, 23000] as const,
+    electronPcts: [0.06, 0.055, 0.055] as const,
+    electronShadowPx: [10, 8, 7] as const,
+    electronShadowAlpha: [1, 0.6, 0.4] as const,
+    coreGlowBlur: 22,
+    coreGlowSpread: 6,
+    glowBlurPx: 46,
   },
-  {
-    icon: "⚙️",
-    tag: "Process-Based Thinking",
-    title: "Systems Beat Goals",
-    body: "Winners and losers often share the same goals. What separates them: the system behind it. Goals set the direction — systems get you there, sustainably.",
-    detail: "The problem with pure goals:\n\n1. Goals are momentary: Once achieved, then what? Many people revert afterward.\n\n2. Goals delay happiness: 'I'll be happy when I achieve X' — making you unhappy until then. Systems make the process the reward.\n\n3. Goals don't prescribe actions: 'I want to lose weight' is not a plan. 'Every evening at 7pm I cook at home' is a system.\n\nFall in love with the process — not the destination.",
-    example: "Instead of 'I want to lose weight' → System: Sunday meal prep. Mon+Thu training after work. No sugar at lunch. Water on the desk. No willpower needed.",
-  },
-  {
-    icon: "🪞",
-    tag: "Identity-Based Habits",
-    title: "Identity Comes First",
-    body: "3 layers of change: Outcomes (what you achieve), Processes (what you do), Identity (who you are). Most start at layer 1. The lasting ones start at layer 3.",
-    detail: "Every habit is a vote for the person you want to become. Small actions accumulate evidence:\n\n'I worked out today' → 'I'm someone who works out' → 'I'm an athlete.'\n\nBelief follows behavior — not the other way around. You don't have to wait until you 'are someone'. You become someone by acting like them.\n\nTwo people refuse cigarettes: Person A says 'No thanks, I'm trying to quit' (outcome-thinking). Person B says 'No thanks, I'm not a smoker' (identity). Who succeeds long-term?",
-    example: "Not: 'I want to write a book.' But: 'I'm a writer — writers write daily.' → 200 words daily = 73,000 words = one complete book per year.",
-  },
-  {
-    icon: "🔄",
-    tag: "The Habit Loop",
-    title: "The 4 Laws — Overview",
-    body: "Every habit follows a loop: Cue → Craving → Response → Reward. Atomic Habits gives you 4 levers to shape this loop — and 4 counter-levers for breaking bad habits.",
-    detail: "Building good habits:\n→ Make it obvious (make the cue visible)\n→ Make it attractive (link it to desire)\n→ Make it easy (reduce friction)\n→ Make it satisfying (immediate reward)\n\nBreaking bad habits — invert all 4:\n← Make it invisible (hide the cue)\n← Make it unattractive (highlight downsides)\n← Make it difficult (increase friction)\n← Make it unsatisfying (make consequences visible)",
-    example: "Reduce phone addiction: Phone in drawer (invisible), black-and-white mode (unattractive), long PIN (difficult), view screen-time stats daily (unsatisfying).",
-  },
-  {
-    icon: "🏠",
-    tag: "Choice Architecture",
-    title: "Environment Design",
-    body: "You're not weak-willed — you live in an environment working against you. Become the architect of your surroundings: reduce friction for good habits, increase it for bad ones.",
-    detail: "Reduce friction (good habits):\n🎸 Guitar in front of the sofa → play automatically\n💧 Water bottle on desk → drink more\n🏋️ Workout clothes laid out the night before → train in the morning\n📚 Book on pillow → read before sleep\n\nIncrease friction (bad habits):\n📱 TV remote in another room\n🍪 Snacks in the top shelf\n📵 Delete apps instead of just logging out\n\nOne space, one use: Your brain associates rooms with behaviors. Bedroom = sleep. Desk = work.",
-    example: "Harvard study in a cafeteria: Water was placed more visibly — no conversation, no poster. Result: +25% water sales, −11% soda. Only through environment design.",
-  },
-  {
-    icon: "⏱",
-    tag: "Gateway Habits",
-    title: "The 2-Minute Rule",
-    body: "New habits should take less than 2 minutes — not as a goal, but as an entry point. 'Jog daily' becomes 'put on shoes and open the front door'. This sounds ridiculously easy. That's the point.",
-    detail: "The real goal isn't the 2-minute version. The goal is showing up.\n\nWhoever goes to the gym daily learns training. Whoever writes daily learns writing. Standardize before optimizing.\n\nThe 2-minute rule builds identity: 'I'm someone who ___' — before scaling the volume. And: Even on your worst day, you can manage 2 minutes. Once started, you rarely stop after 2 minutes.\n\nScale every new habit to its 2-minute version until it runs automatically. Then increase.",
-    example: "'Meditate daily' → 'Take 2 conscious breaths'\n'Eat healthier' → 'Put an apple on the table'\n'Read more' → 'Open the book, read one page'\n'Go to gym' → 'Put on workout clothes'",
-  },
-  {
-    icon: "📍",
-    tag: "If-Then Planning",
-    title: "Implementation Intentions",
-    body: "The most common excuse: 'I forgot.' The solution: decide in advance when and where. Formula: I will [BEHAVIOR] at [TIME] in [LOCATION].",
-    detail: "Peter Gollwitzer's NYU study: People who set location and time had 2–3× higher probability of achieving their goal.\n\nBritish exercise study:\n• Group 1 (motivation only): 35% exercised\n• Group 2 (implementation intention): 91% exercised\n\nThe only difference: Group 2 wrote 'I will exercise on Tuesday at 6pm at the Sports Center.'\n\nCombined with Habit Stacking: 'After [CURRENT HABIT] I will [NEW HABIT].' Double the impact.",
-    example: "'I will exercise every Monday and Thursday after work at 6:00pm at the gym.' → These people exercise 2.4× more often than those with the goal 'exercise more'.",
-  },
-  {
-    icon: "⛓️",
-    tag: "Neuronal Chaining",
-    title: "Habit Stacking",
-    body: "The brain loves patterns. Link new habits to existing automatisms. Formula: 'After [CURRENT HABIT], I will [NEW HABIT].' Each link strengthens the next.",
-    detail: "Simple stacks:\n☕ Morning coffee → 2 min. journaling\n🦷 Brushing teeth → say an affirmation\n💻 Open laptop → write to-do list\n📱 Charge phone → book on nightstand\n\nAdvanced chains:\nWake up → glass of water → 5 min. stretching → journal → shower → podcast at breakfast\n\nEach link automatically triggers the next. If a link breaks: use the 2-minute version as fallback — then return to the stack.",
-    example: "BJ Fogg (Stanford Behavior Lab): 8 pushups after every bathroom visit. After one month: 40–80 pushups daily — without dedicated training sessions or motivation effort.",
-  },
-  {
-    icon: "🤝",
-    tag: "Temptation Bundling + Social Proof",
-    title: "Attractiveness & Social Environment",
-    body: "Link obligation with pleasure. And: surround yourself with people for whom your desired behavior is normal. The environment shapes identity faster than any motivation.",
-    detail: "Temptation Bundling:\nYou may [REWARD] ONLY during [HABIT].\n🎧 Favorite podcast only while running\n📺 Netflix only while ironing\n☕ Favorite coffee only while studying\n\nSocial Environment:\nWe unconsciously imitate behavior from 3 groups:\n1. Close ones (family, friends)\n2. The many (social norms)\n3. The admired (role models, idols)\n\nWhen everyone in your group trains daily, it's normal — no willpower needed. Join a tribe where your desired behavior is the expected behavior.",
-    example: "Christchurch study: Gym friends led to 5× more frequent training. Ronan Byrne (Dublin): Linked stationary bike to Netflix streaming — exercised more than ever before in his life.",
-  },
-  {
-    icon: "📊",
-    tag: "Never Miss Twice",
-    title: "Habit Tracking & Continuity",
-    body: "Visually tracking every habit makes progress tangible and creates motivation through chain reaction. Perfection isn't the goal — resumption is the art.",
-    detail: "Why tracking works:\n1. Obvious: You see progress daily\n2. Attractive: Extending the chain motivates more than the abstract goal\n3. Satisfying: Setting a checkmark = immediate reward (Law 4)\n\nTracking methods:\n📅 Calendar X: Mark every day\n📎 Paperclip trick: Move a clip from box A to B\n🪣 Marble method: For measurable quantities\n\nNever Miss Twice: One missed day = accident. Two in a row = start of a new (bad) habit. Return before the second day passes. Small habit on a bad day > no habit.",
-    example: "Jerry Seinfeld marked every day he wrote jokes with an X. His advice to young comedians: 'Don't break the chain.' No success secret — just continuity.",
-  },
-];
+} as const;
 
-// ─── WIZARD QUESTIONS ─────────────────────────────────────────────────────────
+function AtomLogo({ size, reduced, variant = "hero" }: AtomLogoProps) {
+  const spec = ATOM_SPEC[variant];
 
-const WIZARD_DE: { title: string; questions: Question[] } = {
-  title: "Dein persönliches Profil",
-  questions: [
-    { key: "name", type: "text", q: "Wie heißt du?", sub: "Ich möchte dich kennenlernen, bevor wir starten.", placeholder: "Dein Vorname..." },
-    { key: "identity", type: "text", q: (p) => `${p.name}, wer willst du in 6 Monaten sein?`, sub: "Nicht was du tun willst — wer du sein willst.", placeholder: "Ich bin jemand, der/die ..." },
-    { key: "goal_areas", type: "multi", q: "Wo willst du wachsen?", sub: "Wähle alle Bereiche, die dir wichtig sind.", options: ["💪 Gesundheit & Fitness", "🧠 Lernen & Wissen", "⚡ Produktivität", "🌿 Schlaf & Erholung", "🤝 Beziehungen", "💰 Finanzen", "🎨 Kreativität", "🧘 Mentale Gesundheit"] },
-    { key: "struggles", type: "multi", q: "Woran bist du bisher gescheitert?", sub: "Ehrlichkeit hilft mehr als alles andere.", options: ["😩 Motivation bricht ein", "📉 Vergesse es nach Tagen", "😵 Starte zu groß", "🌍 Umfeld macht es schwer", "🔄 Fange ständig neu an", "⏰ Keine Zeit", "🎯 Zu viele Ziele gleichzeitig", "👥 Fehlende Unterstützung"] },
-    { key: "anchor", type: "text", q: "Was machst du JEDEN Tag ohne Ausnahme?", sub: "Das wird dein Anker für Habit Stacking.", placeholder: "z.B. Morgenkaffee, Zähneputzen, Mittagspause..." },
-  ],
-};
+  // Core pulse: scale 1 ↔ 1.15, opacity 1 ↔ 0.9, 2.4s ease-in-out infinite.
+  const pulseScale = useSharedValue(1);
+  const pulseOpacity = useSharedValue(1);
 
-const WIZARD_EN: { title: string; questions: Question[] } = {
-  title: "Your personal profile",
-  questions: [
-    { key: "name", type: "text", q: "What's your name?", sub: "I'd like to get to know you before we start.", placeholder: "Your first name..." },
-    { key: "identity", type: "text", q: (p) => `${p.name}, who do you want to be in 6 months?`, sub: "Not what you want to do — who you want to be.", placeholder: "I am someone who ..." },
-    { key: "goal_areas", type: "multi", q: "Where do you want to grow?", sub: "Select all areas that matter to you.", options: ["💪 Health & Fitness", "🧠 Learning & Knowledge", "⚡ Productivity", "🌿 Sleep & Recovery", "🤝 Relationships", "💰 Finances", "🎨 Creativity", "🧘 Mental Health"] },
-    { key: "struggles", type: "multi", q: "Where have you struggled in the past?", sub: "Honesty helps more than anything else.", options: ["😩 Motivation collapses", "📉 Forget after a few days", "😵 Start too big", "🌍 Environment makes it hard", "🔄 Keep starting over", "⏰ No time", "🎯 Too many goals at once", "👥 No support"] },
-    { key: "anchor", type: "text", q: "What do you do EVERY day without exception?", sub: "This will be your anchor for Habit Stacking.", placeholder: "e.g. morning coffee, brushing teeth, lunch break..." },
-  ],
-};
+  useEffect(() => {
+    if (reduced) return;
+    pulseScale.value = withRepeat(
+      withTiming(1.15, {
+        duration: 1200, // 2.4s round-trip with `reverse: true`
+        easing: Easing.inOut(Easing.ease),
+      }),
+      -1,
+      true
+    );
+    pulseOpacity.value = withRepeat(
+      withTiming(0.9, {
+        duration: 1200,
+        easing: Easing.inOut(Easing.ease),
+      }),
+      -1,
+      true
+    );
+    return () => {
+      cancelAnimation(pulseScale);
+      cancelAnimation(pulseOpacity);
+    };
+  }, [reduced]);
 
-const LANDING_DE = {
-  badge: "Basierend auf dem Bestseller von James Clear",
-  headline: ["1% besser", "jeden Tag.", "37× besser", "in einem Jahr."],
-  sub: "Atomic Habits gibt dir das System, das Willenskraft ersetzt. Keine Motivationstricks — echte Verhaltensänderung durch kleine, konsequente Handlungen. Bevor du deinen ersten Habit anlegst, zeigen wir dir das System dahinter.",
-  cta: "Das System verstehen →",
-  skip: "Überspringen",
-};
+  const dotSize = size * 0.13;
 
-const LANDING_EN = {
-  badge: "Based on the #1 New York Times bestseller",
-  headline: ["1% better", "every day.", "37× better", "in one year."],
-  sub: "Atomic Habits gives you the system that replaces willpower. No motivation tricks — real behavior change through small, consistent actions. Before you create your first habit, we'll show you the system behind it.",
-  cta: "Understand the system →",
-  skip: "Skip",
-};
+  const coreStyle = useAnimatedStyle(() => ({
+    opacity: pulseOpacity.value,
+    transform: [
+      { translateX: -dotSize / 2 },
+      { translateY: -dotSize / 2 },
+      { scale: pulseScale.value },
+    ],
+  }));
 
-// ─── COMPONENTS ───────────────────────────────────────────────────────────────
+  // Glow: HTML uses `radial-gradient(circle, rgba(74,144,226,0.6), transparent 70%) + blur(N)px`.
+  // The blur makes the gradient softer/larger. We approximate by extending the gradient bounds
+  // beyond the `inset` and using SVG RadialGradient with a 0.6→0 falloff.
+  const glowInset = size * 0.16; // matches `inset:16%`
+  const glowSize = size - glowInset * 2;
 
-function ProgressBar({ current, total }: { current: number; total: number }) {
   return (
-    <View style={{ flexDirection: "row", gap: 4, paddingHorizontal: 24, paddingTop: 8 }}>
-      {Array.from({ length: total }).map((_, i) => (
-        <View
+    <View
+      style={{
+        width: size,
+        height: size,
+        position: "relative",
+      }}
+    >
+      {/* Radial-gradient glow */}
+      <View
+        style={{
+          position: "absolute",
+          left: glowInset,
+          top: glowInset,
+          width: glowSize,
+          height: glowSize,
+        }}
+        pointerEvents="none"
+      >
+        <Svg width={glowSize} height={glowSize} viewBox="0 0 100 100">
+          <Defs>
+            <RadialGradient id="atomGlow" cx="50%" cy="50%" r="50%">
+              <Stop offset="0%" stopColor={PALETTE.blue} stopOpacity={0.6} />
+              <Stop offset="70%" stopColor={PALETTE.blue} stopOpacity={0} />
+            </RadialGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100" height="100" fill="url(#atomGlow)" />
+        </Svg>
+      </View>
+
+      {/* Three orbital rings */}
+      {([0, 60, 120] as const).map((baseRot, i) => (
+        <Orbit
           key={i}
+          size={size}
+          durationMs={spec.durations[i]}
+          baseRotation={baseRot}
+          reduced={reduced}
+          ringOpacity={i === 0 ? 1 : i === 1 ? 0.5 : 0.3}
+          electronOpacity={i === 0 ? 1 : i === 1 ? 0.8 : 0.6}
+          electronSize={size * spec.electronPcts[i]}
+          electronShadowRadius={spec.electronShadowPx[i]}
+          electronShadowOpacity={spec.electronShadowAlpha[i]}
+        />
+      ))}
+
+      {/* Pulsing white core with layered glow (approximates box-shadow spread) */}
+      <Animated.View
+        style={[
+          {
+            position: "absolute",
+            left: "50%",
+            top: "50%",
+            width: dotSize,
+            height: dotSize,
+            alignItems: "center",
+            justifyContent: "center",
+          },
+          coreStyle,
+        ]}
+      >
+        {/* Outer spread halo */}
+        <View
           style={{
-            flex: 1,
-            height: 3,
-            borderRadius: 2,
-            backgroundColor: i <= current ? G.gold : G.surfaceBorder,
-            opacity: i <= current ? 1 : 0.4,
+            position: "absolute",
+            width: dotSize + spec.coreGlowSpread * 2,
+            height: dotSize + spec.coreGlowSpread * 2,
+            borderRadius: (dotSize + spec.coreGlowSpread * 2) / 2,
+            backgroundColor: PALETTE.blue,
+            opacity: 0.7,
+            shadowColor: PALETTE.blue,
+            shadowOpacity: 0.7,
+            shadowRadius: spec.coreGlowBlur,
+            shadowOffset: { width: 0, height: 0 },
+            elevation: 10,
           }}
         />
+        {/* White hot core */}
+        <View
+          style={{
+            width: dotSize,
+            height: dotSize,
+            borderRadius: dotSize / 2,
+            backgroundColor: "#fff",
+          }}
+        />
+      </Animated.View>
+    </View>
+  );
+}
+
+interface OrbitProps {
+  size: number;
+  durationMs: number;
+  baseRotation: number;
+  reduced: boolean;
+  ringOpacity: number;
+  electronOpacity: number;
+  electronSize: number;
+  electronShadowRadius: number;
+  electronShadowOpacity: number;
+}
+
+function Orbit({
+  size,
+  durationMs,
+  baseRotation,
+  reduced,
+  ringOpacity,
+  electronOpacity,
+  electronSize,
+  electronShadowRadius,
+  electronShadowOpacity,
+}: OrbitProps) {
+  const rot = useSharedValue(0);
+
+  useEffect(() => {
+    if (reduced) return;
+    rot.value = withRepeat(
+      withTiming(360, { duration: durationMs, easing: Easing.linear }),
+      -1
+    );
+    return () => cancelAnimation(rot);
+  }, [reduced, durationMs]);
+
+  const spinStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rot.value}deg` }],
+  }));
+
+  // Ring geometry.
+  // RING_SIDE_INSET_PCT: 0 = full-width (HTML default, flach-kapselig),
+  //                     0.08 = leicht oval-iger, 0.15 = sehr eiförmig. Spiel damit.
+  const RING_SIDE_INSET_PCT = 0.08;
+  const ringHeight = size * 0.38;
+  const ringTop = size * 0.31;
+  const ringSideInset = size * RING_SIDE_INSET_PCT;
+  // Electron straddles the ring's right edge (HTML uses `-2%` outside-offset).
+  const electronRight = ringSideInset - size * 0.02 - electronSize / 2;
+
+  return (
+    <View
+      style={{
+        position: "absolute",
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+        transform: [{ rotate: `${baseRotation}deg` }],
+      }}
+    >
+      <Animated.View
+        style={[
+          { position: "absolute", left: 0, top: 0, right: 0, bottom: 0 },
+          spinStyle,
+        ]}
+      >
+        {/* True mathematical ellipse via SVG — alles gleichmäßig gekrümmt */}
+        <Svg
+          width={size}
+          height={size}
+          viewBox={`0 0 ${size} ${size}`}
+          style={{ position: "absolute", left: 0, top: 0 }}
+        >
+          <Ellipse
+            cx={size / 2}
+            cy={size / 2}
+            rx={(size - 2 * ringSideInset) / 2}
+            ry={ringHeight / 2}
+            stroke={PALETTE.blue}
+            strokeWidth={1.5}
+            strokeOpacity={ringOpacity}
+            fill="none"
+          />
+        </Svg>
+        {/* Electron at the right edge of the ring */}
+        <View
+          style={{
+            position: "absolute",
+            right: electronRight,
+            top: size / 2 - electronSize / 2,
+            width: electronSize,
+            height: electronSize,
+            borderRadius: electronSize / 2,
+            backgroundColor: PALETTE.blueLight,
+            opacity: electronOpacity,
+            shadowColor: PALETTE.blue,
+            shadowOpacity: electronShadowOpacity,
+            shadowRadius: electronShadowRadius,
+            shadowOffset: { width: 0, height: 0 },
+            elevation: 6,
+          }}
+        />
+      </Animated.View>
+    </View>
+  );
+}
+
+// ─── PRIMARY BUTTON WITH SHIMMER ──────────────────────────────────────────────
+
+interface PrimaryButtonProps {
+  label: string;
+  onPress: () => void;
+  reduced: boolean;
+}
+
+function PrimaryButton({ label, onPress, reduced }: PrimaryButtonProps) {
+  const shimmer = useSharedValue(-1.6);
+  const [btnW, setBtnW] = useState(0);
+
+  useEffect(() => {
+    if (reduced) return;
+    shimmer.value = withDelay(
+      600,
+      withRepeat(
+        withTiming(2.8, { duration: 3500, easing: Easing.inOut(Easing.ease) }),
+        -1,
+        false
+      )
+    );
+    return () => cancelAnimation(shimmer);
+  }, [reduced]);
+
+  const shimmerStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shimmer.value * btnW }, { skewX: "-20deg" }],
+  }));
+
+  return (
+    <Pressable
+      onPress={onPress}
+      onLayout={(e) => setBtnW(e.nativeEvent.layout.width)}
+      style={({ pressed }) => ({
+        opacity: pressed ? 0.92 : 1,
+        width: "100%",
+        borderRadius: 999,
+        overflow: "hidden",
+      })}
+    >
+      {/* Gradient fallback using stacked layers (no extra deps) */}
+      <View
+        style={{
+          backgroundColor: PALETTE.violet,
+          paddingVertical: 19,
+          paddingHorizontal: 24,
+          alignItems: "center",
+          justifyContent: "center",
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: PALETTE.blue,
+            opacity: 0.55,
+          }}
+        />
+        {btnW > 0 && (
+          <Animated.View
+            style={[
+              {
+                position: "absolute",
+                top: 0,
+                bottom: 0,
+                width: btnW * 0.42,
+                backgroundColor: "rgba(255,255,255,0.35)",
+              },
+              shimmerStyle,
+            ]}
+          />
+        )}
+        <Text
+          style={{
+            fontFamily: FONTS.display,
+            fontSize: 17,
+            color: "#fff",
+            letterSpacing: -0.2,
+            zIndex: 2,
+          }}
+        >
+          {label}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
+// ─── HABIT PREVIEW CARD (mirrors HabitCard look, no DB deps) ──────────────────
+
+interface HabitPreviewCardProps {
+  name: string;
+  emoji: string;
+  color: string;
+  /** 0..1 density of "completed" cells in the heatmap */
+  density: number;
+  reduced: boolean;
+  /** Show a pulsing "today" cell to imply liveness */
+  pulse?: boolean;
+}
+
+function HabitPreviewCard({
+  name,
+  emoji,
+  color,
+  density,
+  reduced,
+  pulse,
+}: HabitPreviewCardProps) {
+  const cols = 18;
+  const rows = 3;
+  const grid = useMemo(() => {
+    // Deterministic pseudo-random pattern keyed by color so the layout is stable.
+    const seed = color.charCodeAt(1) + color.charCodeAt(2);
+    const out: number[][] = [];
+    for (let r = 0; r < rows; r++) {
+      const row: number[] = [];
+      for (let c = 0; c < cols; c++) {
+        const idx = r * cols + c;
+        const v = ((Math.sin((idx + seed) * 12.9898) * 43758.5453) % 1 + 1) % 1;
+        row.push(v);
+      }
+      out.push(row);
+    }
+    return out;
+  }, [color]);
+
+  const pulseOpacity = useSharedValue(0.3);
+  useEffect(() => {
+    if (!pulse || reduced) return;
+    pulseOpacity.value = withRepeat(
+      withTiming(1, { duration: 900, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    );
+    return () => cancelAnimation(pulseOpacity);
+  }, [pulse, reduced]);
+
+  const pulseStyle = useAnimatedStyle(() => ({
+    opacity: pulseOpacity.value,
+  }));
+
+  // Pulse the rightmost cell of the bottom row to imply "today".
+  const pulseRow = rows - 1;
+  const pulseCol = cols - 1;
+
+  return (
+    <View
+      style={{
+        borderRadius: 20,
+        backgroundColor: PALETTE.surface,
+        borderWidth: 1,
+        borderColor: hexA(color, 0.14),
+        paddingVertical: 14,
+        paddingHorizontal: 15,
+      }}
+    >
+      {/* Header row — mirrors HabitCard */}
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 12,
+        }}
+      >
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 11,
+          }}
+        >
+          <View
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 12,
+              backgroundColor: hexA(color, 0.14),
+              borderWidth: 1,
+              borderColor: hexA(color, 0.35),
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 20,
+                lineHeight: 20,
+                width: 20,
+                height: 20,
+                textAlign: "center",
+                textAlignVertical: "center",
+                includeFontPadding: false,
+              }}
+            >
+              {emoji}
+            </Text>
+          </View>
+          <Text
+            style={{
+              fontFamily: FONTS.display,
+              fontSize: 19,
+              color: PALETTE.textHi,
+              letterSpacing: -0.3,
+            }}
+          >
+            {name}
+          </Text>
+        </View>
+        {/* Check button (decorative) */}
+        <View
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 22,
+            backgroundColor: color,
+            alignItems: "center",
+            justifyContent: "center",
+            shadowColor: color,
+            shadowOpacity: 0.55,
+            shadowRadius: 12,
+            shadowOffset: { width: 0, height: 0 },
+            elevation: 6,
+          }}
+        >
+          <CheckIcon size={21} color="#fff" />
+        </View>
+      </View>
+
+      {/* Heatmap grid — rows × flex:1 cells with aspectRatio for square cells */}
+      <View style={{ gap: 4 }}>
+        {grid.map((row, ri) => (
+          <View key={ri} style={{ flexDirection: "row", gap: 4 }}>
+            {row.map((v, ci) => {
+              const isOn = v < density;
+              const isAccent = v < density * 0.45;
+              const cellColor = isOn
+                ? isAccent
+                  ? color
+                  : hexA(color, 0.28)
+                : hexA(color, 0.06);
+              const isPulse = pulse && ri === pulseRow && ci === pulseCol;
+              if (isPulse) {
+                return (
+                  <Animated.View
+                    key={ci}
+                    style={[
+                      {
+                        flex: 1,
+                        aspectRatio: 1,
+                        borderRadius: 3,
+                        backgroundColor: color,
+                        shadowColor: color,
+                        shadowOpacity: 0.8,
+                        shadowRadius: 6,
+                        shadowOffset: { width: 0, height: 0 },
+                        elevation: 4,
+                      },
+                      pulseStyle,
+                    ]}
+                  />
+                );
+              }
+              return (
+                <View
+                  key={ci}
+                  style={{
+                    flex: 1,
+                    aspectRatio: 1,
+                    borderRadius: 3,
+                    backgroundColor: cellColor,
+                  }}
+                />
+              );
+            })}
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+// ─── FLOATING STACK (Screen 3) ────────────────────────────────────────────────
+
+function FloatingStack({
+  children,
+  reduced,
+}: {
+  children: React.ReactNode;
+  reduced: boolean;
+}) {
+  const offset = useSharedValue(0);
+
+  useEffect(() => {
+    if (reduced) return;
+    offset.value = withRepeat(
+      withTiming(-6, { duration: 3500, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    );
+    return () => cancelAnimation(offset);
+  }, [reduced]);
+
+  // perspective + rotateX gives the slight 3D tilt from the template
+  const style = useAnimatedStyle(() => ({
+    transform: [
+      { perspective: 1200 },
+      { rotateX: "9deg" },
+      { translateY: offset.value },
+    ],
+  }));
+
+  return <Animated.View style={[{ width: "100%" }, style]}>{children}</Animated.View>;
+}
+
+// ─── PROGRESS ARC (Screen 5) ──────────────────────────────────────────────────
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
+function ProgressArc({ reduced }: { reduced: boolean }) {
+  const r = 42;
+  const circumference = 2 * Math.PI * r;
+  const offset = useSharedValue(reduced ? circumference * 0.01 : circumference);
+
+  useEffect(() => {
+    if (reduced) {
+      offset.value = circumference * 0.01;
+      return;
+    }
+    offset.value = circumference;
+    offset.value = withDelay(
+      500,
+      withTiming(circumference * 0.01, {
+        duration: 1600,
+        easing: Easing.out(Easing.cubic),
+      })
+    );
+  }, [reduced]);
+
+  const animatedProps = useAnimatedProps(() => ({
+    strokeDashoffset: offset.value,
+  }));
+
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+      <View style={{ width: 64, height: 64 }}>
+        <Svg
+          width={64}
+          height={64}
+          viewBox="0 0 96 96"
+          style={{ transform: [{ rotate: "-90deg" }] }}
+        >
+          <Circle
+            cx={48}
+            cy={48}
+            r={r}
+            fill="none"
+            stroke="rgba(255,255,255,0.08)"
+            strokeWidth={5}
+          />
+          <AnimatedCircle
+            cx={48}
+            cy={48}
+            r={r}
+            fill="none"
+            stroke={PALETTE.blue}
+            strokeWidth={5}
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            animatedProps={animatedProps}
+          />
+        </Svg>
+      </View>
+      <View>
+        <Text
+          style={{
+            fontFamily: FONTS.display,
+            fontSize: 20,
+            color: PALETTE.blue,
+            letterSpacing: -0.5,
+          }}
+        >
+          +1%
+        </Text>
+        <Text style={{ fontSize: 13, color: PALETTE.textLo }}>heute</Text>
+      </View>
+    </View>
+  );
+}
+
+// ─── SCREENS ──────────────────────────────────────────────────────────────────
+
+interface ScreenProps {
+  reduced: boolean;
+  onPrimary: () => void;
+}
+
+function HeroScreen({ reduced, onPrimary }: ScreenProps) {
+  return (
+    <View style={{ flex: 1, justifyContent: "space-between" }}>
+      <View />
+      <View style={{ alignItems: "center", paddingHorizontal: 28 }}>
+        <AtomLogo size={124} reduced={reduced} variant="hero" />
+        <View style={{ marginTop: 38, alignItems: "center" }}>
+          <Text
+            style={{
+              fontFamily: FONTS.display,
+              fontSize: 48,
+              color: PALETTE.textHi,
+              letterSpacing: -1.4,
+            }}
+          >
+            Atomic Habit
+          </Text>
+          <Text
+            style={{
+              marginTop: 12,
+              fontFamily: FONTS.body,
+              fontSize: 18,
+              color: PALETTE.textLo,
+              textAlign: "center",
+            }}
+          >
+            Gewohnheiten, die bleiben.
+          </Text>
+        </View>
+      </View>
+      <View style={{ paddingHorizontal: 28, paddingBottom: 12 }}>
+        <PrimaryButton label="Jetzt starten →" onPress={onPrimary} reduced={reduced} />
+      </View>
+    </View>
+  );
+}
+
+function HookScreen({ reduced, onPrimary }: ScreenProps) {
+  return (
+    <View style={{ flex: 1, paddingHorizontal: 28, paddingTop: 8 }}>
+      {/* Comparison */}
+      <View style={{ flexDirection: "row", gap: 16, alignItems: "stretch" }}>
+        {/* Left — other apps */}
+        <View style={{ flex: 1, gap: 10 }}>
+          <View
+            style={{
+              height: 230,
+              borderRadius: 22,
+              backgroundColor: PALETTE.card,
+              borderWidth: 1,
+              borderColor: PALETTE.divider,
+              padding: 16,
+              opacity: 0.55,
+              justifyContent: "flex-start",
+              gap: 14,
+              overflow: "hidden",
+            }}
+          >
+            <View
+              style={{
+                height: 9,
+                width: "55%",
+                borderRadius: 4,
+                backgroundColor: "rgba(255,255,255,0.18)",
+              }}
+            />
+            {[0, 1, 2, 3, 4].map((i) => (
+              <View
+                key={i}
+                style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+              >
+                <View
+                  style={{
+                    width: 18,
+                    height: 18,
+                    borderRadius: 5,
+                    borderWidth: 1.5,
+                    borderColor: "rgba(255,255,255,0.25)",
+                    backgroundColor: i === 2 ? "rgba(255,255,255,0.22)" : "transparent",
+                  }}
+                />
+                <View
+                  style={{
+                    height: 8,
+                    flex: 1,
+                    borderRadius: 4,
+                    backgroundColor: "rgba(255,255,255,0.12)",
+                  }}
+                />
+              </View>
+            ))}
+            <View
+              style={{
+                position: "absolute",
+                right: 12,
+                bottom: 12,
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                backgroundColor: "rgba(255,107,107,0.14)",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <XIcon size={20} color={PALETTE.red} />
+            </View>
+          </View>
+          <Text
+            style={{
+              textAlign: "center",
+              fontFamily: FONTS.medium,
+              fontSize: 13,
+              color: PALETTE.textLo,
+            }}
+          >
+            Andere Apps
+          </Text>
+        </View>
+
+        {/* Right — Atomic */}
+        <View style={{ flex: 1, gap: 10 }}>
+          <View
+            style={{
+              height: 230,
+              borderRadius: 22,
+              backgroundColor: PALETTE.card,
+              borderWidth: 1,
+              borderColor: hexA(PALETTE.blue, 0.25),
+              padding: 16,
+              overflow: "hidden",
+              shadowColor: PALETTE.blue,
+              shadowOpacity: 0.18,
+              shadowRadius: 16,
+              shadowOffset: { width: 0, height: 0 },
+              elevation: 6,
+            }}
+          >
+            <View
+              style={{
+                height: 9,
+                width: "45%",
+                borderRadius: 4,
+                backgroundColor: "rgba(255,255,255,0.3)",
+                marginBottom: 12,
+              }}
+            />
+            <MiniHeatmap />
+            <View
+              style={{
+                position: "absolute",
+                right: 12,
+                bottom: 12,
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                backgroundColor: PALETTE.green,
+                alignItems: "center",
+                justifyContent: "center",
+                shadowColor: PALETTE.green,
+                shadowOpacity: 0.55,
+                shadowRadius: 12,
+                shadowOffset: { width: 0, height: 0 },
+                elevation: 6,
+              }}
+            >
+              <CheckIcon size={22} color="#06210f" thick />
+            </View>
+          </View>
+          <Text
+            style={{
+              textAlign: "center",
+              fontFamily: FONTS.display,
+              fontSize: 13,
+              color: PALETTE.textHi,
+            }}
+          >
+            Atomic
+          </Text>
+        </View>
+      </View>
+
+      {/* Headline */}
+      <View style={{ marginTop: 36 }}>
+        <Text
+          style={{
+            fontFamily: FONTS.display,
+            fontSize: 38,
+            color: PALETTE.textHi,
+            letterSpacing: -1.2,
+            lineHeight: 42,
+          }}
+        >
+          Kein Tracker.{"\n"}
+          <Text style={{ color: PALETTE.blue }}>Ein System.</Text>
+        </Text>
+        <Text
+          style={{
+            marginTop: 16,
+            fontFamily: FONTS.body,
+            fontSize: 16,
+            lineHeight: 22,
+            color: PALETTE.textLo,
+          }}
+        >
+          Die meisten Apps tracken Haken.{"\n"}
+          Atomic baut Identität.
+        </Text>
+      </View>
+
+      {/* Pills */}
+      <View
+        style={{
+          marginTop: "auto",
+          flexDirection: "row",
+          flexWrap: "wrap",
+          gap: 9,
+          paddingBottom: 12,
+        }}
+      >
+        <Pill color={PALETTE.blue} label="Identitäts-Basis" />
+        <Pill color={PALETTE.green} label="Habit Stacking" />
+        <Pill color={PALETTE.amber} label="1%-Methode" />
+      </View>
+
+      <View style={{ paddingBottom: 12 }}>
+        <PrimaryButton label="Weiter →" onPress={onPrimary} reduced={reduced} />
+      </View>
+    </View>
+  );
+}
+
+function MiniHeatmap() {
+  // 4 rows × 6 cols of small colored squares — mirrors template grid.
+  const cells: { c: string }[][] = [
+    [
+      { c: PALETTE.blue },
+      { c: hexA(PALETTE.blue, 0.25) },
+      { c: PALETTE.green },
+      { c: hexA(PALETTE.green, 0.25) },
+      { c: PALETTE.amber },
+      { c: hexA(PALETTE.amber, 0.25) },
+    ],
+    [
+      { c: hexA(PALETTE.blue, 0.25) },
+      { c: PALETTE.blue },
+      { c: hexA(PALETTE.green, 0.25) },
+      { c: PALETTE.green },
+      { c: hexA(PALETTE.amber, 0.25) },
+      { c: PALETTE.red },
+    ],
+    [
+      { c: PALETTE.red },
+      { c: hexA(PALETTE.blue, 0.25) },
+      { c: PALETTE.blue },
+      { c: PALETTE.green },
+      { c: hexA(PALETTE.red, 0.25) },
+      { c: PALETTE.amber },
+    ],
+    [
+      { c: hexA(PALETTE.green, 0.25) },
+      { c: PALETTE.green },
+      { c: PALETTE.amber },
+      { c: hexA(PALETTE.blue, 0.25) },
+      { c: PALETTE.blue },
+      { c: hexA(PALETTE.green, 0.25) },
+    ],
+  ];
+  return (
+    <View style={{ gap: 5 }}>
+      {cells.map((row, ri) => (
+        <View key={ri} style={{ flexDirection: "row", gap: 5 }}>
+          {row.map((cell, ci) => (
+            <View
+              key={ci}
+              style={{
+                flex: 1,
+                aspectRatio: 1,
+                borderRadius: 3,
+                backgroundColor: cell.c,
+              }}
+            />
+          ))}
+        </View>
       ))}
     </View>
   );
 }
 
-function DetailBox({ text }: { text: string }) {
+function Pill({ color, label }: { color: string; label: string }) {
   return (
-    <View style={{
-      backgroundColor: G.detail,
-      borderLeftWidth: 2,
-      borderLeftColor: G.goldBorder,
-      borderRadius: 8,
-      padding: 14,
-      marginTop: 16,
-    }}>
-      <Text style={{ fontFamily: FONTS.body, fontSize: 13.5, color: G.muted, lineHeight: 21 }}>
-        {text}
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        borderRadius: 999,
+        backgroundColor: hexA(color, 0.12),
+        borderWidth: 1,
+        borderColor: hexA(color, 0.22),
+      }}
+    >
+      <View
+        style={{
+          width: 8,
+          height: 8,
+          backgroundColor: color,
+          transform: [{ rotate: "45deg" }],
+        }}
+      />
+      <Text style={{ fontSize: 13, fontFamily: FONTS.medium, color: PALETTE.textHi }}>
+        {label}
       </Text>
     </View>
   );
 }
 
-function ExampleBox({ text }: { text: string }) {
+function VisualizationScreen({ reduced, onPrimary }: ScreenProps) {
   return (
-    <View style={{
-      backgroundColor: G.goldDim,
-      borderWidth: 1,
-      borderColor: G.goldBorder,
-      borderRadius: 8,
-      padding: 14,
-      marginTop: 12,
-    }}>
-      <Text style={{ fontFamily: FONTS.medium, fontSize: 11, color: G.gold, letterSpacing: 1, marginBottom: 6 }}>
-        BEISPIEL
+    <View style={{ flex: 1, paddingHorizontal: 28, paddingTop: 8 }}>
+      {/* Tilted card stack */}
+      <View
+        style={{
+          height: 360,
+          justifyContent: "center",
+        }}
+      >
+        <FloatingStack reduced={reduced}>
+          <View style={{ gap: 14 }}>
+            <HabitPreviewCard
+              name="laufen"
+              emoji="🏃"
+              color={PALETTE.blue}
+              density={0.42}
+              reduced={reduced}
+            />
+            <HabitPreviewCard
+              name="meditieren"
+              emoji="🧘"
+              color={PALETTE.green}
+              density={0.48}
+              reduced={reduced}
+              pulse
+            />
+            <HabitPreviewCard
+              name="lesen"
+              emoji="📖"
+              color={PALETTE.amber}
+              density={0.52}
+              reduced={reduced}
+            />
+          </View>
+        </FloatingStack>
+      </View>
+
+      <View style={{ marginTop: 24 }}>
+        <Text
+          style={{
+            fontFamily: FONTS.display,
+            fontSize: 32,
+            color: PALETTE.textHi,
+            letterSpacing: -1,
+            lineHeight: 36,
+          }}
+        >
+          Sieh wie dein{"\n"}System wächst.
+        </Text>
+        <Text
+          style={{
+            marginTop: 12,
+            fontFamily: FONTS.body,
+            fontSize: 16,
+            lineHeight: 22,
+            color: PALETTE.textLo,
+          }}
+        >
+          Jeder Punkt ist ein Beweis.{"\n"}Für dich. Täglich.
+        </Text>
+      </View>
+
+      <View
+        style={{
+          marginTop: "auto",
+          paddingTop: 20,
+          borderTopWidth: 1,
+          borderTopColor: PALETTE.divider,
+        }}
+      >
+        <Text
+          style={{
+            fontFamily: FONTS.body,
+            fontSize: 14,
+            fontStyle: "italic",
+            lineHeight: 20,
+            color: PALETTE.textMid,
+          }}
+        >
+          „Gewohnheiten sind der Zinseszins der Selbstverbesserung."
+        </Text>
+        <Text
+          style={{
+            marginTop: 6,
+            fontFamily: FONTS.medium,
+            fontSize: 12,
+            color: PALETTE.textXLo,
+          }}
+        >
+          — James Clear
+        </Text>
+      </View>
+
+      <View style={{ paddingVertical: 16 }}>
+        <PrimaryButton label="Weiter →" onPress={onPrimary} reduced={reduced} />
+      </View>
+    </View>
+  );
+}
+
+function MethodScreen({ reduced, onPrimary }: ScreenProps) {
+  return (
+    <View style={{ flex: 1, paddingHorizontal: 28, paddingTop: 8 }}>
+      <Text
+        style={{
+          fontFamily: FONTS.display,
+          fontSize: 32,
+          color: PALETTE.textHi,
+          letterSpacing: -1,
+          lineHeight: 36,
+        }}
+      >
+        3 Schritte.{"\n"}Ein neues System.
       </Text>
-      <Text style={{ fontFamily: FONTS.body, fontSize: 13.5, color: G.text, lineHeight: 20 }}>
-        {text}
+      <Text
+        style={{
+          marginTop: 12,
+          marginBottom: 16,
+          fontFamily: FONTS.body,
+          fontSize: 16,
+          lineHeight: 22,
+          color: PALETTE.textLo,
+        }}
+      >
+        Nicht: Was willst du tun?{"\n"}Sondern: Wer willst du sein?
+      </Text>
+
+      {/* Habit context — alle 3 Schritte beziehen sich auf dieses Beispiel-Habit */}
+      <View
+        style={{
+          alignSelf: "flex-start",
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+          paddingVertical: 8,
+          paddingHorizontal: 12,
+          borderRadius: 999,
+          backgroundColor: hexA(PALETTE.green, 0.12),
+          borderWidth: 1,
+          borderColor: hexA(PALETTE.green, 0.22),
+          marginBottom: 18,
+        }}
+      >
+        <Text style={{ fontSize: 11, fontFamily: FONTS.medium, color: PALETTE.textLo, letterSpacing: 1 }}>
+          BEISPIEL-HABIT
+        </Text>
+        <Text style={{ fontSize: 14 }}>🧘</Text>
+        <Text style={{ fontSize: 13, fontFamily: FONTS.display, color: PALETTE.textHi }}>
+          meditieren
+        </Text>
+      </View>
+
+      {/* Stepper */}
+      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 22 }}>
+        <StepNode n={1} state="active" />
+        <View style={{ flex: 1, height: 2, backgroundColor: PALETTE.blue, marginHorizontal: 4 }} />
+        <StepNode n={2} state="next" />
+        <View
+          style={{
+            flex: 1,
+            height: 2,
+            backgroundColor: hexA(PALETTE.blue, 0.18),
+            marginHorizontal: 4,
+          }}
+        />
+        <StepNode n={3} state="future" />
+      </View>
+
+      <View style={{ gap: 14, flex: 1 }}>
+        {/* Step 1 — Identität */}
+        <StepCard caption="Wähle deine Identität — nicht dein Ziel">
+          <View style={{ gap: 7 }}>
+            <View
+              style={{
+                paddingVertical: 9,
+                paddingHorizontal: 12,
+                borderRadius: 10,
+                backgroundColor: hexA(PALETTE.blue, 0.12),
+                borderWidth: 1,
+                borderColor: hexA(PALETTE.blue, 0.45),
+              }}
+            >
+              <Text style={{ fontSize: 13, fontFamily: FONTS.display, color: PALETTE.blueLight }}>
+                Ich bin jemand, der auf sich achtet
+              </Text>
+            </View>
+            <View
+              style={{
+                paddingVertical: 9,
+                paddingHorizontal: 12,
+                borderRadius: 10,
+                backgroundColor: "rgba(255,255,255,0.04)",
+              }}
+            >
+              <Text style={{ fontSize: 13, color: PALETTE.textLo }}>
+                Ich bin jemand, der täglich lernt
+              </Text>
+            </View>
+          </View>
+        </StepCard>
+
+        {/* Step 2 — Trigger (cue + implementation intention) */}
+        <StepCard caption="Verankere es in deinem Alltag">
+          <View
+            style={{
+              paddingVertical: 11,
+              paddingHorizontal: 13,
+              borderRadius: 11,
+              backgroundColor: "rgba(255,255,255,0.04)",
+            }}
+          >
+            <Text style={{ fontSize: 14, lineHeight: 20, color: PALETTE.textHi }}>
+              Nachdem ich{" "}
+              <Text style={{ color: PALETTE.blue, fontFamily: FONTS.display }}>
+                Kaffee getrunken habe
+              </Text>
+              , werde ich{" "}
+              <Text style={{ color: PALETTE.blue, fontFamily: FONTS.display }}>
+                meditieren
+              </Text>
+              .
+            </Text>
+          </View>
+        </StepCard>
+
+        {/* Step 3 — Belohnung */}
+        <StepCard caption="Mach es sofort befriedigend">
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            <View
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 10,
+                backgroundColor: hexA(PALETTE.green, 0.14),
+                borderWidth: 1,
+                borderColor: hexA(PALETTE.green, 0.45),
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <CheckIcon size={18} color={PALETTE.green} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontFamily: FONTS.medium, color: PALETTE.textHi }}>
+                Heute erledigt
+              </Text>
+              <Text style={{ fontSize: 11, color: PALETTE.textLo, marginTop: 1 }}>
+                Sofort sichtbarer Fortschritt
+              </Text>
+            </View>
+          </View>
+        </StepCard>
+      </View>
+
+      <View style={{ paddingVertical: 16 }}>
+        <PrimaryButton label="Weiter →" onPress={onPrimary} reduced={reduced} />
+      </View>
+    </View>
+  );
+}
+
+function StepNode({
+  n,
+  state,
+}: {
+  n: number;
+  state: "active" | "next" | "future";
+}) {
+  if (state === "active") {
+    return (
+      <View
+        style={{
+          width: 30,
+          height: 30,
+          borderRadius: 15,
+          backgroundColor: PALETTE.blue,
+          alignItems: "center",
+          justifyContent: "center",
+          shadowColor: PALETTE.blue,
+          shadowOpacity: 0.5,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 0 },
+          elevation: 4,
+        }}
+      >
+        <Text style={{ fontFamily: FONTS.display, fontSize: 14, color: "#fff" }}>{n}</Text>
+      </View>
+    );
+  }
+  if (state === "next") {
+    return (
+      <View
+        style={{
+          width: 30,
+          height: 30,
+          borderRadius: 15,
+          backgroundColor: hexA(PALETTE.blue, 0.18),
+          borderWidth: 1.5,
+          borderColor: hexA(PALETTE.blue, 0.5),
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Text
+          style={{ fontFamily: FONTS.display, fontSize: 14, color: PALETTE.blueLight }}
+        >
+          {n}
+        </Text>
+      </View>
+    );
+  }
+  return (
+    <View
+      style={{
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+        backgroundColor: "rgba(255,255,255,0.06)",
+        borderWidth: 1.5,
+        borderColor: "rgba(255,255,255,0.18)",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Text
+        style={{
+          fontFamily: FONTS.display,
+          fontSize: 14,
+          color: PALETTE.textLo,
+        }}
+      >
+        {n}
       </Text>
     </View>
   );
 }
 
-// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
+function StepCard({
+  caption,
+  children,
+}: {
+  caption: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <View
+      style={{
+        borderRadius: 18,
+        backgroundColor: PALETTE.card,
+        borderWidth: 1,
+        borderColor: PALETTE.divider,
+        paddingVertical: 15,
+        paddingHorizontal: 16,
+      }}
+    >
+      <View style={{ marginBottom: 10 }}>{children}</View>
+      <Text style={{ fontSize: 13, fontFamily: FONTS.medium, color: PALETTE.textMid }}>
+        {caption}
+      </Text>
+    </View>
+  );
+}
 
-export default function Onboarding() {
-  const router = useRouter();
+interface CtaScreenProps {
+  reduced: boolean;
+  onCreate: () => void;
+  onDashboard: () => void;
+}
+
+function CtaScreen({ reduced, onCreate, onDashboard }: CtaScreenProps) {
+  return (
+    <View style={{ flex: 1, paddingHorizontal: 32, position: "relative" }}>
+      {/* Background formula */}
+      <Text
+        style={{
+          position: "absolute",
+          right: -10,
+          bottom: 200,
+          fontSize: 58,
+          fontFamily: FONTS.display,
+          color: "rgba(255,255,255,0.06)",
+          letterSpacing: -1,
+          transform: [{ rotate: "-6deg" }],
+        }}
+      >
+        1,01³⁶⁵ = 37,78
+      </Text>
+
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 26 }}>
+        <AtomLogo size={176} reduced={reduced} variant="cta" />
+
+        <ProgressArc reduced={reduced} />
+
+        <View style={{ alignItems: "center", paddingHorizontal: 8 }}>
+          <Text
+            style={{
+              textAlign: "center",
+              fontFamily: FONTS.display,
+              fontSize: 36,
+              color: PALETTE.textHi,
+              letterSpacing: -1.2,
+              lineHeight: 40,
+            }}
+          >
+            Wer willst du{"\n"}in 365 Tagen sein?
+          </Text>
+          <Text
+            style={{
+              marginTop: 16,
+              textAlign: "center",
+              fontFamily: FONTS.body,
+              fontSize: 15,
+              lineHeight: 22,
+              color: PALETTE.textLo,
+            }}
+          >
+            1% besser jeden Tag = 37× besser nach einem Jahr.{"\n"}Dein System beginnt heute.
+          </Text>
+        </View>
+      </View>
+
+      <View style={{ paddingBottom: 12, alignItems: "center", gap: 14 }}>
+        <PrimaryButton
+          label="Meinen ersten Habit erstellen →"
+          onPress={onCreate}
+          reduced={reduced}
+        />
+        <Pressable onPress={onDashboard} hitSlop={12}>
+          <Text
+            style={{
+              fontSize: 14,
+              color: PALETTE.textMid,
+              fontFamily: FONTS.medium,
+            }}
+          >
+            Erstmal nur umschauen
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+// ─── ICONS ────────────────────────────────────────────────────────────────────
+
+function CheckIcon({
+  size,
+  color,
+  thick,
+}: {
+  size: number;
+  color: string;
+  thick?: boolean;
+}) {
+  const stroke = thick ? 3 : 2.5;
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M5 12.5l4.5 4.5L19 7"
+        stroke={color}
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </Svg>
+  );
+}
+
+function XIcon({ size, color }: { size: number; color: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M6 6l12 12M18 6L6 18"
+        stroke={color}
+        strokeWidth={2.5}
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+}
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+
+function hexA(hex: string, alpha: number): string {
+  // Accepts "#RRGGBB". Returns "rgba(...)".
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+async function completeOnboarding(): Promise<void> {
+  try {
+    await AsyncStorage.setItem(ONBOARDING_V2_KEY, "true");
+  } catch {
+    // Storage failure shouldn't block navigation.
+  }
+}
+
+// ─── MAIN ─────────────────────────────────────────────────────────────────────
+
+const TOTAL_STEPS = 5;
+
+export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const reduced = useReducedMotion();
+  const [step, setStep] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
 
-  const [lang, setLang] = useState<Lang>("de");
-  const [screen, setScreen] = useState<Screen>("lang");
-  const [slideIdx, setSlideIdx] = useState(0);
-  const [wizardStep, setWizardStep] = useState(0);
-  const [profile, setProfile] = useState<Profile>({});
-  const [textVal, setTextVal] = useState("");
-
-  const slides = lang === "de" ? SLIDES_DE : SLIDES_EN;
-  const wizard = lang === "de" ? WIZARD_DE : WIZARD_EN;
-  const landing = lang === "de" ? LANDING_DE : LANDING_EN;
-
-  const complete = async () => {
-    await AsyncStorage.setItem(ONBOARDING_KEY, "true");
-    await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify({ ...profile, lang }));
-    router.replace("/");
-  };
-
-  const currentQuestion = wizard.questions[wizardStep];
-  const questionText = typeof currentQuestion?.q === "function"
-    ? currentQuestion.q(profile)
-    : currentQuestion?.q ?? "";
-
-  const advanceWizard = (val: string | string[]) => {
-    const updated = { ...profile, [currentQuestion.key]: val };
-    setProfile(updated);
-    setTextVal("");
-    if (wizardStep < wizard.questions.length - 1) {
-      setWizardStep((s) => s + 1);
-    } else {
-      // save profile and enter app
-      AsyncStorage.setItem(ONBOARDING_KEY, "true");
-      AsyncStorage.setItem(PROFILE_KEY, JSON.stringify({ ...updated, lang }));
-      router.replace("/");
+  const goNext = () => {
+    if (step < TOTAL_STEPS - 1) {
+      const next = step + 1;
+      setStep(next);
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
     }
   };
 
-  const toggleMulti = (opt: string) => {
-    const current = (profile[currentQuestion.key] as string[]) ?? [];
-    const next = current.includes(opt) ? current.filter((x) => x !== opt) : [...current, opt];
-    setProfile((p) => ({ ...p, [currentQuestion.key]: next }));
+  const skipToDashboard = async () => {
+    await completeOnboarding();
+    router.replace("/");
   };
 
-  // ── LANGUAGE SCREEN ──────────────────────────────────────────────────────────
-  if (screen === "lang") {
-    return (
-      <View style={{ flex: 1, backgroundColor: G.bg, alignItems: "center", justifyContent: "center", padding: 32 }}>
-        <Text style={{ fontFamily: FONTS.display, fontSize: 28, color: G.text, textAlign: "center", marginBottom: 8 }}>
-          Atomic Habits
-        </Text>
-        <Text style={{ fontFamily: FONTS.body, fontSize: 15, color: G.muted, textAlign: "center", marginBottom: 48 }}>
-          Choose your language / Sprache wählen
-        </Text>
-        <Pressable
-          onPress={() => { setLang("de"); setScreen("landing"); }}
-          style={{ width: "100%", backgroundColor: G.goldDim, borderWidth: 1, borderColor: G.goldBorderStrong, borderRadius: 14, padding: 20, alignItems: "center", marginBottom: 14 }}
-        >
-          <Text style={{ fontSize: 28, marginBottom: 4 }}>🇩🇪</Text>
-          <Text style={{ fontFamily: FONTS.display, fontSize: 18, color: G.text }}>Deutsch</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => { setLang("en"); setScreen("landing"); }}
-          style={{ width: "100%", backgroundColor: G.surface, borderWidth: 1, borderColor: G.surfaceBorder, borderRadius: 14, padding: 20, alignItems: "center" }}
-        >
-          <Text style={{ fontSize: 28, marginBottom: 4 }}>🇬🇧</Text>
-          <Text style={{ fontFamily: FONTS.display, fontSize: 18, color: G.text }}>English</Text>
-        </Pressable>
-      </View>
-    );
-  }
+  const finishToWizard = async () => {
+    await completeOnboarding();
+    router.replace("/habit/new");
+  };
 
-  // ── LANDING SCREEN ───────────────────────────────────────────────────────────
-  if (screen === "landing") {
-    return (
-      <View style={{ flex: 1, backgroundColor: G.bg, paddingTop: insets.top + 16 }}>
-        <ScrollView contentContainerStyle={{ padding: 28, paddingBottom: 120 }}>
-          <View style={{
-            alignSelf: "flex-start",
-            backgroundColor: G.goldDim,
-            borderWidth: 1,
-            borderColor: G.goldBorder,
-            borderRadius: 20,
-            paddingHorizontal: 12,
-            paddingVertical: 5,
-            marginBottom: 28,
-          }}>
-            <Text style={{ fontFamily: FONTS.medium, fontSize: 11, color: G.gold, letterSpacing: 0.5 }}>
-              {landing.badge}
-            </Text>
-          </View>
-
-          <Text style={{ fontFamily: FONTS.display, fontSize: 44, color: G.gold, lineHeight: 52, marginBottom: 2 }}>
-            {landing.headline[0]}
-          </Text>
-          <Text style={{ fontFamily: FONTS.display, fontSize: 44, color: G.text, lineHeight: 52, marginBottom: 2 }}>
-            {landing.headline[1]}
-          </Text>
-          <Text style={{ fontFamily: FONTS.display, fontSize: 44, color: G.gold, lineHeight: 52, marginBottom: 2 }}>
-            {landing.headline[2]}
-          </Text>
-          <Text style={{ fontFamily: FONTS.display, fontSize: 44, color: G.text, lineHeight: 52, marginBottom: 28 }}>
-            {landing.headline[3]}
-          </Text>
-
-          <Text style={{ fontFamily: FONTS.body, fontSize: 16, color: G.muted, lineHeight: 26, marginBottom: 40 }}>
-            {landing.sub}
-          </Text>
-
-          {/* Visual: compounding bars */}
-          <View style={{ backgroundColor: G.surface, borderWidth: 1, borderColor: G.surfaceBorder, borderRadius: 12, padding: 20, marginBottom: 40 }}>
-            <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 4, height: 70, marginBottom: 10 }}>
-              {[0.1, 0.15, 0.22, 0.32, 0.45, 0.60, 0.78, 1.0].map((h, i) => (
-                <View key={i} style={{ flex: 1, height: `${h * 100}%` as any, backgroundColor: i === 7 ? G.gold : G.goldBorder, borderRadius: 3 }} />
-              ))}
-            </View>
-            <Text style={{ fontFamily: FONTS.mono, fontSize: 11, color: G.muted, textAlign: "center" }}>
-              +1% täglich → 37× in 365 Tagen
-            </Text>
-          </View>
-        </ScrollView>
-
-        <View style={{ position: "absolute", bottom: insets.bottom + 20, left: 28, right: 28, gap: 10 }}>
-          <Pressable
-            onPress={() => setScreen("slides")}
-            style={{ backgroundColor: G.gold, borderRadius: 14, padding: 18, alignItems: "center" }}
-          >
-            <Text style={{ fontFamily: FONTS.display, fontSize: 16, color: "#1a1200" }}>{landing.cta}</Text>
-          </Pressable>
-          <Pressable onPress={complete} style={{ alignItems: "center", padding: 10 }}>
-            <Text style={{ fontFamily: FONTS.body, fontSize: 14, color: G.muted }}>{landing.skip}</Text>
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
-
-  // ── SLIDES SCREEN ─────────────────────────────────────────────────────────────
-  if (screen === "slides") {
-    const slide = slides[slideIdx];
-    const isLast = slideIdx === slides.length - 1;
-
-    return (
-      <View style={{ flex: 1, backgroundColor: G.bg, paddingTop: insets.top + 8 }}>
-        <ProgressBar current={slideIdx} total={slides.length} />
-
-        <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 120 }}>
-          {/* Tag */}
-          <View style={{ alignSelf: "flex-start", backgroundColor: G.goldDim, borderWidth: 1, borderColor: G.goldBorder, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5, marginBottom: 20, marginTop: 12 }}>
-            <Text style={{ fontFamily: FONTS.medium, fontSize: 11, color: G.gold, letterSpacing: 0.8 }}>
-              {slide.tag.toUpperCase()}
-            </Text>
-          </View>
-
-          {/* Icon + Title */}
-          <Text style={{ fontSize: 42, marginBottom: 10 }}>{slide.icon}</Text>
-          <Text style={{ fontFamily: FONTS.display, fontSize: 26, color: G.text, lineHeight: 34, marginBottom: 14 }}>
-            {slide.title}
-          </Text>
-
-          {/* Body */}
-          <Text style={{ fontFamily: FONTS.body, fontSize: 16, color: G.text, lineHeight: 26, marginBottom: 4 }}>
-            {slide.body}
-          </Text>
-
-          {/* Detail */}
-          <DetailBox text={slide.detail} />
-
-          {/* Example */}
-          <ExampleBox text={slide.example} />
-
-          {/* Slide counter */}
-          <Text style={{ fontFamily: FONTS.mono, fontSize: 12, color: G.muted, textAlign: "center", marginTop: 28 }}>
-            {slideIdx + 1} / {slides.length}
-          </Text>
-        </ScrollView>
-
-        {/* Navigation */}
-        <View style={{
-          position: "absolute",
-          bottom: insets.bottom + 16,
-          left: 24,
-          right: 24,
+  return (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: PALETTE.bg,
+        paddingTop: insets.top,
+        paddingBottom: Math.max(insets.bottom, 16),
+      }}
+    >
+      {/* Top bar: progress dots + skip */}
+      <View
+        style={{
           flexDirection: "row",
-          gap: 12,
-        }}>
-          {slideIdx > 0 && (
-            <Pressable
-              onPress={() => setSlideIdx((i) => i - 1)}
-              style={{ flex: 1, backgroundColor: G.surface, borderWidth: 1, borderColor: G.surfaceBorder, borderRadius: 14, padding: 16, alignItems: "center" }}
+          alignItems: "center",
+          justifyContent: "space-between",
+          paddingHorizontal: 24,
+          paddingTop: 12,
+          paddingBottom: 12,
+          height: 44,
+        }}
+      >
+        <View style={{ flexDirection: "row", gap: 6 }}>
+          {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
+            <View
+              key={i}
+              style={{
+                width: i === step ? 22 : 6,
+                height: 6,
+                borderRadius: 3,
+                backgroundColor: i === step ? PALETTE.blue : "rgba(255,255,255,0.18)",
+              }}
+            />
+          ))}
+        </View>
+        {step >= 1 && step < TOTAL_STEPS - 1 && (
+          <Pressable onPress={skipToDashboard} hitSlop={12}>
+            <Text
+              style={{
+                fontSize: 14,
+                color: PALETTE.textMid,
+                fontFamily: FONTS.medium,
+              }}
             >
-              <Text style={{ fontFamily: FONTS.medium, fontSize: 15, color: G.muted }}>←</Text>
-            </Pressable>
-          )}
-          <Pressable
-            onPress={() => {
-              if (isLast) setScreen("wizard");
-              else setSlideIdx((i) => i + 1);
-            }}
-            style={{ flex: 3, backgroundColor: isLast ? G.gold : G.goldDim, borderWidth: 1, borderColor: isLast ? G.gold : G.goldBorderStrong, borderRadius: 14, padding: 16, alignItems: "center" }}
-          >
-            <Text style={{ fontFamily: FONTS.display, fontSize: 15, color: isLast ? "#1a1200" : G.gold }}>
-              {isLast ? (lang === "de" ? "Mein Profil aufbauen →" : "Build my profile →") : (lang === "de" ? "Weiter →" : "Next →")}
+              Überspringen
             </Text>
           </Pressable>
-        </View>
+        )}
       </View>
-    );
-  }
 
-  // ── WIZARD SCREEN ─────────────────────────────────────────────────────────────
-  if (screen === "wizard") {
-    return (
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
-        <View style={{ flex: 1, backgroundColor: G.bg, paddingTop: insets.top + 8 }}>
-          <ProgressBar current={wizardStep} total={wizard.questions.length} />
-
-          <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 160 }}>
-            {/* Step label */}
-            <Text style={{ fontFamily: FONTS.mono, fontSize: 11, color: G.muted, letterSpacing: 1, marginTop: 16, marginBottom: 20 }}>
-              {lang === "de" ? `SCHRITT ${wizardStep + 1} VON ${wizard.questions.length}` : `STEP ${wizardStep + 1} OF ${wizard.questions.length}`}
-            </Text>
-
-            <Text style={{ fontFamily: FONTS.display, fontSize: 24, color: G.text, lineHeight: 32, marginBottom: 10 }}>
-              {questionText}
-            </Text>
-            <Text style={{ fontFamily: FONTS.body, fontSize: 14, color: G.muted, marginBottom: 28, lineHeight: 21 }}>
-              {currentQuestion.sub}
-            </Text>
-
-            {/* Text input */}
-            {currentQuestion.type === "text" && (
-              <TextInput
-                value={textVal}
-                onChangeText={setTextVal}
-                placeholder={currentQuestion.placeholder}
-                placeholderTextColor={G.muted}
-                style={{
-                  backgroundColor: G.surface,
-                  borderWidth: 1,
-                  borderColor: textVal ? G.goldBorderStrong : G.surfaceBorder,
-                  borderRadius: 12,
-                  padding: 16,
-                  fontFamily: FONTS.body,
-                  fontSize: 16,
-                  color: G.text,
-                }}
-                returnKeyType="done"
-                onSubmitEditing={() => textVal.trim() && advanceWizard(textVal.trim())}
-              />
-            )}
-
-            {/* Single select */}
-            {currentQuestion.type === "single" && currentQuestion.options.map((opt) => (
-              <Pressable
-                key={opt}
-                onPress={() => advanceWizard(opt)}
-                style={{
-                  backgroundColor: profile[currentQuestion.key] === opt ? G.goldDim : G.surface,
-                  borderWidth: 1,
-                  borderColor: profile[currentQuestion.key] === opt ? G.goldBorderStrong : G.surfaceBorder,
-                  borderRadius: 12,
-                  padding: 16,
-                  marginBottom: 10,
-                }}
-              >
-                <Text style={{ fontFamily: FONTS.medium, fontSize: 15, color: G.text }}>{opt}</Text>
-              </Pressable>
-            ))}
-
-            {/* Multi select */}
-            {currentQuestion.type === "multi" && (
-              <>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
-                  {currentQuestion.options.map((opt) => {
-                    const selected = ((profile[currentQuestion.key] as string[]) ?? []).includes(opt);
-                    return (
-                      <Pressable
-                        key={opt}
-                        onPress={() => toggleMulti(opt)}
-                        style={{
-                          backgroundColor: selected ? G.goldDim : G.surface,
-                          borderWidth: 1,
-                          borderColor: selected ? G.goldBorderStrong : G.surfaceBorder,
-                          borderRadius: 20,
-                          paddingHorizontal: 14,
-                          paddingVertical: 10,
-                        }}
-                      >
-                        <Text style={{ fontFamily: FONTS.medium, fontSize: 14, color: selected ? G.gold : G.text }}>{opt}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </>
-            )}
-          </ScrollView>
-
-          {/* Bottom CTA */}
-          <View style={{ position: "absolute", bottom: insets.bottom + 16, left: 24, right: 24 }}>
-            {currentQuestion.type === "text" ? (
-              <Pressable
-                onPress={() => textVal.trim() && advanceWizard(textVal.trim())}
-                style={{
-                  backgroundColor: textVal.trim() ? G.gold : G.surface,
-                  borderRadius: 14,
-                  padding: 18,
-                  alignItems: "center",
-                  borderWidth: 1,
-                  borderColor: textVal.trim() ? G.gold : G.surfaceBorder,
-                }}
-              >
-                <Text style={{ fontFamily: FONTS.display, fontSize: 16, color: textVal.trim() ? "#1a1200" : G.muted }}>
-                  {lang === "de" ? "Weiter →" : "Next →"}
-                </Text>
-              </Pressable>
-            ) : currentQuestion.type === "multi" ? (
-              <Pressable
-                onPress={() => advanceWizard((profile[currentQuestion.key] as string[]) ?? [])}
-                style={{ backgroundColor: G.gold, borderRadius: 14, padding: 18, alignItems: "center" }}
-              >
-                <Text style={{ fontFamily: FONTS.display, fontSize: 16, color: "#1a1200" }}>
-                  {lang === "de" ? "Weiter →" : "Next →"}
-                </Text>
-              </Pressable>
-            ) : null}
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    );
-  }
-
-  return null;
+      <ScrollView
+        ref={scrollRef}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: 8 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {step === 0 && <HeroScreen reduced={reduced} onPrimary={goNext} />}
+        {step === 1 && <HookScreen reduced={reduced} onPrimary={goNext} />}
+        {step === 2 && (
+          <VisualizationScreen reduced={reduced} onPrimary={goNext} />
+        )}
+        {step === 3 && <MethodScreen reduced={reduced} onPrimary={goNext} />}
+        {step === 4 && (
+          <CtaScreen
+            reduced={reduced}
+            onCreate={finishToWizard}
+            onDashboard={skipToDashboard}
+          />
+        )}
+      </ScrollView>
+    </View>
+  );
 }

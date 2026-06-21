@@ -2,11 +2,13 @@ import { View, Text, ScrollView, ActivityIndicator, Pressable } from "react-nati
 import { useEffect, useState } from "react";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { COLORS, FONTS, SPACING, RADIUS } from "../src/theme";
 import { useUserXP } from "../src/data/queries/useUserXP";
 import { useUserBadges } from "../src/data/queries/useUserBadges";
 import { supabase } from "../src/lib/supabase";
 import type { Badge } from "../src/utils/badges";
+import { ONBOARDING_V2_KEY } from "./onboarding";
 
 function XPBar({ progress }: { progress: number }) {
   return (
@@ -316,8 +318,29 @@ export default function ProfileScreen() {
         ))}
       </View>
 
-      {/* Account */}
+      {/* Onboarding re-open */}
       <View style={{ marginTop: 24, alignItems: "center" }}>
+        <Pressable
+          onPress={async () => {
+            await AsyncStorage.removeItem(ONBOARDING_V2_KEY).catch(() => {});
+            router.push("/onboarding");
+          }}
+          hitSlop={8}
+        >
+          <Text
+            style={{
+              color: COLORS.muted,
+              fontSize: 13,
+              fontFamily: FONTS.medium,
+            }}
+          >
+            Onboarding nochmal ansehen
+          </Text>
+        </Pressable>
+      </View>
+
+      {/* Account */}
+      <View style={{ marginTop: 16, alignItems: "center" }}>
         <Text style={{ color: COLORS.muted, fontSize: 11, marginBottom: 8 }}>
           {isAnon ? "Test-Account (anonym)" : email ?? ""}
         </Text>
