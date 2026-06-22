@@ -1,16 +1,10 @@
-import { useRouter } from "expo-router";
-import { useEffect, useMemo } from "react";
 import * as Haptics from "expo-haptics";
+import { useRouter } from "expo-router";
+import { useMemo } from "react";
 import { Pressable, Text, View } from "react-native";
-import Animated, {
-  interpolateColor,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from "react-native-reanimated";
-import { COLORS, FONTS } from "../theme";
 import { useHabitToggle, type CheckedToastInfo } from "../hooks/useHabitToggle";
-import { computeActiveWeekSet, heatmapCellOpacity } from "../utils/heatmap";
+import { COLORS, FONTS } from "../theme";
+import { computeHaloSet, heatmapCellOpacity } from "../utils/heatmap";
 import { HabitEmblem } from "./HabitEmblem";
 
 interface HabitCardCompactProps {
@@ -25,7 +19,8 @@ interface HabitCardCompactProps {
 }
 
 const COLS = 7; // Mon..Sun
-const CELL_GAP = 2;
+const CELL_SIZE = 11;
+const CELL_GAP = 3.5;
 
 function toYmd(d: Date): string {
   const y = d.getFullYear();
@@ -54,20 +49,6 @@ export function HabitCardCompact({
 }: HabitCardCompactProps) {
   const router = useRouter();
   const renderColor = color ?? "#7C3AED";
-
-  const borderProgress = useSharedValue(isCompletedToday ? 1 : 0);
-
-  const cardBorderStyle = useAnimatedStyle(() => ({
-    borderColor: interpolateColor(
-      borderProgress.value,
-      [0, 1],
-      [COLORS.border, `${renderColor}80`]
-    ),
-  }));
-
-  useEffect(() => {
-    borderProgress.value = withTiming(isCompletedToday ? 1 : 0, { duration: 300 });
-  }, [isCompletedToday]);
 
   const { toggle } = useHabitToggle({ onChecked: onCheckedToast });
 
@@ -130,21 +111,17 @@ export function HabitCardCompact({
     return { weeks: rows, monthLabel: monthStr };
   }, [recentDays]);
 
-  const activeWeeks = useMemo(
-    () => computeActiveWeekSet(weeks.map((w) => w.dones)),
+  const halo = useMemo(
+    () => computeHaloSet(weeks.map((w) => w.dones)),
     [weeks]
   );
 
   return (
-    <Animated.View
-      style={[
-        {
-          borderRadius: 12,
-          borderWidth: 1,
-          backgroundColor: COLORS.card,
-        },
-        cardBorderStyle,
-      ]}
+    <View
+      style={{
+        borderRadius: 12,
+        backgroundColor: COLORS.card,
+      }}
     >
       <Pressable
         onPress={handlePress}
@@ -203,24 +180,62 @@ export function HabitCardCompact({
         </View>
 
         {/* Calendar */}
-        <View style={{ gap: CELL_GAP }}>
+        <View style={{ gap: CELL_GAP, alignItems: "center" }}>
           {weeks.map((week, row) => {
-            const isActiveWeek = activeWeeks.has(row);
             return (
               <View key={row} style={{ flexDirection: "row", gap: CELL_GAP }}>
                 {week.dones.map((isDone, col) => {
                   const cellYmd = week.ymds[col];
                   const isBeforeCreation = cellYmd < createdDateStr;
+                  const isInHalo =
+                    !isBeforeCreation && halo.has(`${row},${col}`);
                   const opacity = heatmapCellOpacity({
                     isDone,
-                    isInActiveWeek: isActiveWeek && !isBeforeCreation,
+                    isInHalo,
                   });
-                  return (
+                  return isDone ? (
                     <View
                       key={col}
                       style={{
-                        flex: 1,
-                        aspectRatio: 1,
+                        width: CELL_SIZE,
+                        height: CELL_SIZE,
+                        borderRadius: 2,
+                        backgroundColor: renderColor,
+                        shadowColor: renderColor,
+                        shadowOpacity: 0.4,
+                        shadowRadius: 8,
+                        shadowOffset: { width: 0, height: 0 },
+                        elevation: 4,
+                        overflow: "hidden",
+                      }}
+                    >
+                      <View
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          height: "50%",
+                          backgroundColor: "rgba(255,255,255,0.18)",
+                        }}
+                      />
+                      <View
+                        style={{
+                          position: "absolute",
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          height: "30%",
+                          backgroundColor: "rgba(0,0,0,0.15)",
+                        }}
+                      />
+                    </View>
+                  ) : (
+                    <View
+                      key={col}
+                      style={{
+                        width: CELL_SIZE,
+                        height: CELL_SIZE,
                         borderRadius: 2,
                         backgroundColor: renderColor,
                         opacity,
@@ -233,6 +248,6 @@ export function HabitCardCompact({
           })}
         </View>
       </Pressable>
-    </Animated.View>
+    </View>
   );
 }

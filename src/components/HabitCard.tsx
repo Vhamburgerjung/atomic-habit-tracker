@@ -1,15 +1,9 @@
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo, useRef } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
-import Animated, {
-  interpolateColor,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from "react-native-reanimated";
 import { useHabitToggle, type CheckedToastInfo } from "../hooks/useHabitToggle";
 import { COLORS, FONTS } from "../theme";
-import { computeActiveWeekSet, heatmapCellOpacity } from "../utils/heatmap";
+import { computeHaloSet, heatmapCellOpacity } from "../utils/heatmap";
 import { CheckButton } from "./CheckButton";
 import { HabitEmblem } from "./HabitEmblem";
 
@@ -26,9 +20,9 @@ interface HabitCardProps {
 
 const COLS = 52;
 const ROWS = 7;
-const CELL_SIZE = 12;
+const CELL_SIZE = 9;
 const CELL_GAP = 3;
-const HEATMAP_HORIZONTAL_PADDING = 12;
+const HEATMAP_HORIZONTAL_PADDING = 10;
 
 function toYmd(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -47,24 +41,9 @@ export function HabitCard({
   const router = useRouter();
   const renderColor = color ?? "#7C3AED";
 
-  const borderProgress = useSharedValue(isCompletedToday ? 1 : 0);
-
-  const cardBorderStyle = useAnimatedStyle(() => ({
-    borderColor: interpolateColor(
-      borderProgress.value,
-      [0, 1],
-      [COLORS.border, `${renderColor}80`]
-    ),
-  }));
-
-  useEffect(() => {
-    borderProgress.value = withTiming(isCompletedToday ? 1 : 0, { duration: 300 });
-  }, [isCompletedToday]);
-
   const { toggle } = useHabitToggle({ onChecked: onCheckedToast });
 
   const handleToggle = () => {
-    borderProgress.value = withTiming(!isCompletedToday ? 1 : 0, { duration: 300 });
     const todayStr = new Date().toISOString().split("T")[0];
     toggle(id, todayStr);
   };
@@ -110,8 +89,8 @@ export function HabitCard({
     };
   }, [recentDays]);
 
-  const activeWeeks = useMemo(
-    () => computeActiveWeekSet(columns.map((c) => c.dones)),
+  const halo = useMemo(
+    () => computeHaloSet(columns.map((c) => c.dones)),
     [columns]
   );
 
@@ -120,16 +99,12 @@ export function HabitCard({
   const didInitialScroll = useRef(false);
 
   return (
-    <Animated.View
-      style={[
-        {
-          marginBottom: 12,
-          borderRadius: 12,
-          borderWidth: 1,
-          backgroundColor: COLORS.card,
-        },
-        cardBorderStyle,
-      ]}
+    <View
+      style={{
+        marginBottom: 12,
+        borderRadius: 12,
+        backgroundColor: COLORS.card,
+      }}
     >
       <Pressable
         onLongPress={() => router.push(`/habit/${id}`)}
@@ -205,16 +180,17 @@ export function HabitCard({
         >
           <View style={{ flexDirection: "row", gap: CELL_GAP }}>
             {columns.map((column, col) => {
-              const isActiveWeek = activeWeeks.has(col);
               return (
                 <View key={col} style={{ gap: CELL_GAP }}>
                   {column.dones.map((isDone, row) => {
                     const cellYmd = column.ymds[row];
                     const isBeforeCreation = cellYmd < createdDateStr;
                     const isToday = col === todayCol && row === todayRow;
+                    const isInHalo =
+                      !isBeforeCreation && halo.has(`${col},${row}`);
                     const opacity = heatmapCellOpacity({
                       isDone,
-                      isInActiveWeek: isActiveWeek && !isBeforeCreation,
+                      isInHalo,
                     });
                     return (
                       <View
@@ -226,18 +202,39 @@ export function HabitCard({
                           justifyContent: "center",
                         }}
                       >
-                        <View
-                          style={{
-                            position: "absolute",
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            borderRadius: 2,
-                            backgroundColor: renderColor,
-                            opacity,
-                          }}
-                        />
+                        {isDone ? (
+                          <View
+                            style={{
+                              position: "absolute",
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              borderRadius: 2,
+                              backgroundColor: renderColor,
+                              shadowColor: renderColor,
+                              shadowOpacity: 0.4,
+                              shadowRadius: 8,
+                              shadowOffset: { width: 0, height: 0 },
+                              elevation: 4,
+                              overflow: "hidden",
+                            }}
+                          >
+                                </View>
+                        ) : (
+                          <View
+                            style={{
+                              position: "absolute",
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              borderRadius: 2,
+                              backgroundColor: renderColor,
+                              opacity,
+                            }}
+                          />
+                        )}
                         {isToday && !isDone && (
                           <View
                             style={{
@@ -257,6 +254,6 @@ export function HabitCard({
           </View>
         </ScrollView>
       </Pressable>
-    </Animated.View>
+    </View>
   );
 }

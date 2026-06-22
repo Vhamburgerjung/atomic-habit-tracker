@@ -1,7 +1,7 @@
 export const COLORS = {
-  background: '#0A0A0F',
-  card: '#13131A',
-  border: '#1E1E2E',
+  background: '#0d0d0e',
+  card: '#000000',
+  border: 'rgba(255,255,255,0.06)',
   text: '#F1F0ED',
   muted: '#9CA3AF',
   accent: '#7C3AED',
